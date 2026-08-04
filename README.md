@@ -30,9 +30,8 @@ infra repos:
 | Bootstrap | `cloud-init/kali.user-data.yaml` | Creates the lab user, injects the SSH key, grows the rootfs, installs Python + qemu-guest-agent | First boot only |
 | Configuration | `ansible/` (role `attacker`) | Installs the Kali toolset, swaps in the standard kernel, sets up the XFCE desktop + greeter, sets the console password, mounts the shared folder and data disk | Automatic after boot, and on every `make configure` |
 
-See `docs/superpowers/specs/2026-08-04-utm-redteam-main-design.md` for the
-full design if you want the reasoning behind these choices (that directory is
-gitignored, so it only exists in a checkout that produced it).
+See [`docs/superpowers/specs/2026-08-04-utm-redteam-main-design.md`](docs/superpowers/specs/2026-08-04-utm-redteam-main-design.md)
+for the full design rationale behind these choices.
 
 ## Requirements
 
