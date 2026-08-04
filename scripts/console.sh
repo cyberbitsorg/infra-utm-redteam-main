@@ -2,12 +2,13 @@
 # Attach to a VM's serial console (ttyAMA0, exposed by UTM as a pseudo-tty).
 # Works on any kernel, which makes it the recovery path when the display or
 # network is what is broken. The pty path changes on every VM start, so it is
-# queried live. Without a console password (.env) the login prompt cannot be
-# passed: diagnostic channel only.
+# queried live. The console password is ATTACKER_PASSWORD from lab.conf,
+# applied by the attacker role; without it the login prompt cannot be passed:
+# diagnostic channel only.
 source "$(dirname "${BASH_SOURCE[0]}")/lib.sh"
 load_config
 
-short="${1:?Usage: make console <short-name> (e.g. gateway or workstation)}"
+short="${1:?Usage: make console <short-name> (e.g. kali)}"
 
 # Validate against the fleet so a typo names the known VMs instead of failing
 # inside AppleScript.
