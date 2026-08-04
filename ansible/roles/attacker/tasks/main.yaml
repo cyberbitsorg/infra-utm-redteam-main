@@ -1,0 +1,28 @@
+---
+# Order is load-bearing: swap to the console kernel and reboot BEFORE the
+# desktop (a greeter needs the standard kernel's framebuffer); set the console
+# password; install the desktop; wire host integration and mounts; install the
+# toolset last (it can pull GUI apps and is the slowest step).
+- name: Console kernel + console security
+  ansible.builtin.include_tasks: console-kernel.yaml
+  tags: [kernel]
+
+- name: Apply any pending kernel reboot before the desktop
+  ansible.builtin.meta: flush_handlers
+
+- name: Console / GUI password
+  ansible.builtin.include_tasks: console-auth.yaml
+  tags: [auth]
+
+- name: Desktop
+  ansible.builtin.include_tasks: desktop.yaml
+  when: attacker_gui | default('xfce') != 'none'
+  tags: [desktop, gui]
+
+- name: Host integration and persistent mounts
+  ansible.builtin.include_tasks: integration.yaml
+  tags: [integration, mounts]
+
+- name: Kali toolset
+  ansible.builtin.include_tasks: toolset.yaml
+  tags: [toolset, tools]

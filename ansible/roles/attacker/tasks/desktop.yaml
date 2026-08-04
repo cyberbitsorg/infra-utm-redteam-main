@@ -1,0 +1,52 @@
+---
+# XFCE desktop rendered in UTM's window, LightDM greeter that prompts for
+# ATTACKER_PASSWORD (never auto-logs in). Runs after the console-kernel reboot.
+- name: Preseed LightDM as the default display manager
+  ansible.builtin.debconf:
+    name: lightdm
+    question: shared/default-x-display-manager
+    vtype: select
+    value: lightdm
+
+- name: Install the XFCE desktop and LightDM
+  ansible.builtin.apt:
+    name:
+      - kali-desktop-xfce
+      - lightdm
+    state: present
+    update_cache: true
+    cache_valid_time: 3600
+
+- name: Remove any LightDM auto-login drop-in
+  ansible.builtin.file:
+    path: /etc/lightdm/lightdm.conf.d/10-autologin.conf
+    state: absent
+
+- name: Remove the user from passwordless-login groups
+  ansible.builtin.shell:
+    cmd: |
+      set -euo pipefail
+      for g in nopasswdlogin autologin; do
+        if getent group "$g" >/dev/null && id -nG "{{ ansible_user }}" | tr ' ' '\n' | grep -qx "$g"; then
+          gpasswd -d "{{ ansible_user }}" "$g"
+        fi
+      done
+    executable: /bin/bash
+  register: desktop_group_removal
+  changed_when: "'Removing user' in desktop_group_removal.stdout"
+
+- name: Read the current default systemd target
+  ansible.builtin.command: systemctl get-default
+  register: desktop_current_target
+  changed_when: false
+
+- name: Boot to the graphical target by default
+  ansible.builtin.command: systemctl set-default graphical.target
+  changed_when: true
+  when: desktop_current_target.stdout | trim != 'graphical.target'
+
+- name: Enable and start LightDM
+  ansible.builtin.systemd:
+    name: lightdm
+    enabled: true
+    state: started

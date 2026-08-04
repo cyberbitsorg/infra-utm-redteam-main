@@ -1,0 +1,39 @@
+---
+- name: Install the selected Kali toolset
+  ansible.builtin.apt:
+    name: "{{ attacker_packages }}"
+    state: present
+    update_cache: true
+    cache_valid_time: 3600
+
+- name: Normalise the extra tool-group list
+  ansible.builtin.set_fact:
+    attacker_tool_group_list: >-
+      {{ (kali_tool_groups | default('') | regex_replace(',', ' ')).split()
+         | map('regex_replace', '^(.*)$', 'kali-tools-\1') | list }}
+
+- name: Install extra Kali tool groups (additive)
+  ansible.builtin.apt:
+    name: "{{ attacker_tool_group_list }}"
+    state: present
+    update_cache: true
+    cache_valid_time: 3600
+  when: attacker_tool_group_list | length > 0
+
+- name: Check for the Metasploit database helper
+  ansible.builtin.stat:
+    path: /usr/bin/msfdb
+  register: attacker_msfdb
+
+- name: Initialise the Metasploit database
+  ansible.builtin.command: msfdb init
+  args:
+    creates: /usr/share/metasploit-framework/config/database.yml
+  when: attacker_msfdb.stat.exists
+
+- name: Keep PostgreSQL running across reboots (Metasploit backend)
+  ansible.builtin.service:
+    name: postgresql
+    enabled: true
+    state: started
+  when: attacker_msfdb.stat.exists

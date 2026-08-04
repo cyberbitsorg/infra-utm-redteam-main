@@ -1,0 +1,9 @@
+---
+# Set the console/GUI password on the guest (also unlocks the account cloud-init
+# locked, so the LightDM greeter is usable). SSH stays key-only regardless.
+- name: Set the user's console/GUI password
+  ansible.builtin.shell:
+    cmd: "set -o pipefail; echo '{{ ansible_user }}:{{ attacker_password }}' | chpasswd"
+    executable: /bin/bash
+  changed_when: false
+  no_log: true

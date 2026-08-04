@@ -1,0 +1,124 @@
+---
+# Host integration: SPICE clipboard, the live shared folder, and the persistent
+# data disk mounted per persist_mode. No anonymity invariant here, so these are
+# all fine.
+
+# --- Clipboard (SPICE) ------------------------------------------------------
+- name: Install or remove the SPICE guest agent (clipboard)
+  ansible.builtin.apt:
+    name: spice-vdagent
+    state: "{{ 'present' if (attacker_clipboard | default('yes') | bool) else 'absent' }}"
+    purge: true
+    update_cache: true
+    cache_valid_time: 3600
+
+- name: Enable the SPICE agent daemon
+  ansible.builtin.systemd_service:
+    name: spice-vdagentd
+    enabled: true
+    state: started
+  when: attacker_clipboard | default('yes') | bool
+
+# --- Shared folder ----------------------------------------------------------
+# UTM exposes the host share/ over VirtFS (9p, tag typically "share") or SPICE
+# WebDAV. Mount 9p if the guest sees the tag; otherwise leave a note. Confirmed
+# by the Task 7 Step 3 validation.
+- name: Ensure the shared-folder mount point exists
+  ansible.builtin.file:
+    path: "/home/{{ ansible_user }}/share"
+    state: directory
+    owner: "{{ ansible_user }}"
+    group: "{{ ansible_user }}"
+    mode: "0755"
+
+- name: Mount the UTM shared folder over 9p (if present)
+  ansible.posix.mount:
+    path: "/home/{{ ansible_user }}/share"
+    src: share
+    fstype: 9p
+    opts: "trans=virtio,version=9p2000.L,rw,_netdev,nofail,msize=104857600"
+    state: mounted
+  register: share_mount
+  failed_when: false
+
+# --- Persistent data disk ---------------------------------------------------
+# The second VirtIO disk (persist/data.qcow2, imported by UTM). Format on first
+# use, then mount at /data (persist_mode=data) or /home (persist_mode=home).
+- name: Identify the data disk (the non-root VirtIO block device)
+  ansible.builtin.shell:
+    cmd: |
+      set -euo pipefail
+      root_src="$(findmnt -no SOURCE / | sed 's/[0-9]*$//; s/p$//')"
+      for d in /dev/vdb /dev/vdc /dev/vda; do
+        [ -b "$d" ] || continue
+        case "$root_src" in *"$d"*) continue;; esac
+        echo "$d"; exit 0
+      done
+      exit 0
+  args:
+    executable: /bin/bash
+  register: data_dev
+  changed_when: false
+
+- name: Fail clearly if no data disk is present
+  ansible.builtin.fail:
+    msg: >-
+      persist_mode={{ persist_mode }} but no second VirtIO disk was found.
+      The data disk is created by scripts/create-vm.sh; rebuild with make destroy
+      then make up, or confirm the Task 7 data-disk validation.
+  when: (data_dev.stdout | trim) | length == 0
+
+- name: Make an ext4 filesystem on the data disk if it has none
+  ansible.builtin.filesystem:
+    fstype: ext4
+    dev: "{{ data_dev.stdout | trim }}"
+    # never force: only formats a disk that has no filesystem yet, so existing
+    # work is never wiped on a reconfigure.
+  when: (data_dev.stdout | trim) | length > 0
+
+- name: Mount the data disk at /data
+  ansible.posix.mount:
+    path: /data
+    src: "{{ data_dev.stdout | trim }}"
+    fstype: ext4
+    opts: "defaults,nofail"
+    state: mounted
+  when:
+    - (data_dev.stdout | trim) | length > 0
+    - persist_mode | default('data') == 'data'
+
+- name: Link ~/engagements to /data
+  ansible.builtin.file:
+    src: /data
+    dest: "/home/{{ ansible_user }}/engagements"
+    state: link
+    force: true
+    owner: "{{ ansible_user }}"
+    group: "{{ ansible_user }}"
+  when: persist_mode | default('data') == 'data'
+
+- name: Own /data for the user
+  ansible.builtin.file:
+    path: /data
+    state: directory
+    owner: "{{ ansible_user }}"
+    group: "{{ ansible_user }}"
+    mode: "0755"
+  when:
+    - (data_dev.stdout | trim) | length > 0
+    - persist_mode | default('data') == 'data'
+
+- name: Mount the data disk at /home (persist_mode=home)
+  ansible.posix.mount:
+    path: /home
+    src: "{{ data_dev.stdout | trim }}"
+    fstype: ext4
+    opts: "defaults,nofail"
+    state: mounted
+  when:
+    - (data_dev.stdout | trim) | length > 0
+    - persist_mode | default('data') == 'home'
+  # NOTE: on a fresh data disk this mounts an empty /home OVER the cloud-init
+  # user's home. The Task 7 validation confirms the first-boot ordering; if the
+  # login user's home must be seeded, copy /etc/skel after mount. Documented in
+  # docs/host-integration.md.

@@ -1,0 +1,46 @@
+---
+# Kali genericcloud runs a cloud kernel with no virtio_gpu/DRM, so UTM's display
+# stays blank. Install the standard kernel and make grub default to it; keep the
+# cloud kernel as a fallback (purging it wedges boot). Driven over SSH; the
+# console/desktop is the payoff.
+- name: Install the standard Kali kernel (virtio_gpu for the console)
+  ansible.builtin.apt:
+    name: linux-image-arm64
+    state: present
+    update_cache: true
+    cache_valid_time: 3600
+  when: ansible_distribution == 'Kali'
+
+- name: Make grub default to the standard (non-cloud) kernel
+  ansible.builtin.shell: |
+    set -euo pipefail
+    update-grub
+    sub="$(awk -F"'" '/^submenu / {print $4; exit}' /boot/grub/grub.cfg)"
+    entry="$(awk -F"'" '/[[:space:]]menuentry / && /gnulinux/ && /kali-arm64/ && !/cloud/ && !/recovery/ {print $4; exit}' /boot/grub/grub.cfg)"
+    [ -n "$entry" ] || { echo "no standard-kernel grub entry found"; exit 1; }
+    if ! grep -q '^GRUB_DEFAULT=saved' /etc/default/grub; then
+      sed -i 's/^GRUB_DEFAULT=.*/GRUB_DEFAULT=saved/' /etc/default/grub
+      grep -q '^GRUB_DEFAULT=' /etc/default/grub || echo 'GRUB_DEFAULT=saved' >> /etc/default/grub
+    fi
+    update-grub
+    if [ -n "$sub" ]; then grub-set-default "${sub}>${entry}"; else grub-set-default "${entry}"; fi
+  args:
+    executable: /bin/bash
+  changed_when: false
+  when: ansible_distribution == 'Kali'
+
+- name: Reboot into the standard kernel to activate the UTM console
+  ansible.builtin.reboot:
+    reboot_timeout: 300
+  when:
+    - ansible_distribution == 'Kali'
+    - "'cloud' in ansible_kernel"
+
+- name: Remove the Kali image's console auto-login overrides
+  ansible.builtin.file:
+    path: "{{ item }}"
+    state: absent
+  loop:
+    - /etc/systemd/system/getty@tty1.service.d/autologin.conf
+    - /etc/systemd/system/serial-getty@.service.d/autologin.conf
+  notify: Reload systemd and restart the tty1 getty
