@@ -1,6 +1,7 @@
 #!/usr/bin/env bash
-# Pure persistence decisions, sourced by create-vm.sh and destroy.sh. No UTM,
-# no side effects, so it is unit-testable on any machine.
+# Pure persistence decision (create vs. reuse the data disk). No UTM, no side
+# effects, so it is unit-testable on any machine; exercised by
+# tests/persist-roundtrip.sh.
 set -euo pipefail
 
 # Decide whether to create a fresh data disk or reuse the existing one.

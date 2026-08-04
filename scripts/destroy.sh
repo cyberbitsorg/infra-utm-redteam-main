@@ -21,8 +21,8 @@ for entry in "${LAB_VMS[@]}"; do
     bundle_disk="$(osascript "${REPO_ROOT}/scripts/vm-config.applescript" datadisk "$name" 2>/dev/null || true)"
     if [[ -n "$bundle_disk" && -f "$bundle_disk" ]]; then
       log "Preserving data disk from ${name} -> $(data_disk_path)"
-      mkdir -p "$PERSIST_DIR"
-      cp "$bundle_disk" "$(data_disk_path).new" \
+      mkdir -p "$PERSIST_DIR" \
+        && cp "$bundle_disk" "$(data_disk_path).new" \
         && mv -f "$(data_disk_path).new" "$(data_disk_path)" \
         && ok "Data disk preserved" \
         || warn "Could not preserve data disk from ${name}; persist/ left as-is"
