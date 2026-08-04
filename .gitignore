@@ -1,0 +1,28 @@
+# Downloaded base image (large, fetched on demand)
+images/*
+!images/.gitkeep
+
+# Persistent data disk (large; survives make destroy, never committed)
+persist/*
+!persist/.gitkeep
+
+# Host<->guest shared folder contents (user files)
+share/*
+!share/.gitkeep
+
+# Generated per-deploy artifacts
+generated/
+*.seed.iso
+
+# Ansible inventory generated from running VMs
+ansible/inventory/hosts.generated.yaml
+!ansible/inventory/.gitkeep
+
+# Secrets and local config
+lab.conf
+*.pem
+id_ed25519
+id_ed25519.pub
+
+# Logs
+*.log
