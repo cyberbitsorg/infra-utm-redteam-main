@@ -1,0 +1,18 @@
+---
+# Configures the main Kali attack box after provisioning. Idempotent.
+# Subsets via tags, e.g. --tags toolset or --tags desktop.
+
+- name: Base configuration
+  hosts: all
+  become: true
+  gather_facts: true
+  roles:
+    - role: common
+      tags: [common, base]
+
+- name: Configure the attack box
+  hosts: role_attacker
+  become: true
+  roles:
+    - role: attacker
+      tags: [attacker]

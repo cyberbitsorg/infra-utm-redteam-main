@@ -1,0 +1,39 @@
+---
+# Toolset selection. up.sh passes -e attacker_toolset from KALI_TOOLSET.
+attacker_toolset: default
+
+attacker_packages_curated:
+  - nmap
+  - netcat-traditional
+  - gobuster
+  - ffuf
+  - hydra
+  - sqlmap
+  - metasploit-framework
+  - seclists
+attacker_packages_headless:
+  - kali-linux-headless
+attacker_packages_default:
+  - kali-linux-default
+attacker_packages_large:
+  - kali-linux-large
+
+attacker_packages: >-
+  {{ attacker_packages_curated if attacker_toolset == 'curated'
+     else attacker_packages_headless if attacker_toolset == 'headless'
+     else attacker_packages_large if attacker_toolset == 'large'
+     else attacker_packages_default }}
+
+# Extra kali-tools-* groups, additive on top of the toolset. up.sh passes
+# -e kali_tool_groups from KALI_TOOL_GROUPS (space/comma separated, no prefix).
+kali_tool_groups: ""
+
+# Desktop and console. up.sh passes these from lab.conf.
+attacker_gui: xfce
+attacker_clipboard: "yes"
+attacker_password: redteam
+
+# Persistence layout. up.sh passes -e persist_mode from PERSIST_MODE.
+#   data -> mount the data disk at /data (~/engagements -> /data), clean home
+#   home -> the data disk holds /home
+persist_mode: data
