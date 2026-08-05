@@ -157,6 +157,15 @@ side, so [integration.yaml](ansible/roles/attacker/tasks/integration.yaml)
 mounts `src: share`. That mount is `nofail`: skip the steps above and you get an
 empty `~/Sandbox`, not a broken build.
 
+On write access: UTM shares with `security_model=mapped-xattr`, so the guest's
+idea of ownership is stored in `user.virtfs.*` xattrs on the host file. Anything
+created on the Mac carries no such xattr and falls back to the raw macOS uid,
+which is a stranger to the guest. `make configure` chowns the share root so the
+guest can create files and folders there. Files and folders you made on the Mac
+stay read-only in the guest; `sudo chown -R $USER:users ~/Sandbox/<dir>` inside
+the VM fixes any you want to write to, and only touches xattrs, never the Mac's
+own ownership.
+
 The persistent disk (`persist/data.qcow2`, `DATA_DISK_GB`) is formatted ext4 on
 first use only and mounted per `PERSIST_MODE`. Under `home`, note that a
 brand-new empty disk mounted at `/home` shadows the cloud-init user's home:

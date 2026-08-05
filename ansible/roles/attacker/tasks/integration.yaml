@@ -57,6 +57,21 @@
   register: share_mount
   failed_when: false
 
+# UTM shares with security_model=mapped-xattr: the guest's ownership lives in
+# user.virtfs.* xattrs on the host file, and anything created on the Mac has no
+# such xattr, so it falls back to the raw host uid (501 on macOS) against the
+# guest's 1000. That leaves the share root owned by a stranger and read-only, so
+# the guest cannot create anything in it. Chowning the mount root writes the
+# mapping and costs nothing on the host, which keeps its own ownership. Files
+# and folders made on the Mac stay read-only in the guest; chown them here too
+# if you need to write to them.
+- name: Take ownership of the mounted Sandbox root
+  ansible.builtin.file:
+    path: "/home/{{ ansible_user }}/Sandbox"
+    state: directory
+    owner: "{{ ansible_user }}"
+    group: "{{ attacker_user_group }}"
+
 # --- Persistent data disk ---------------------------------------------------
 # The second VirtIO disk (persist/data.qcow2, imported by UTM). Format on first
 # use, then mount at /data (persist_mode=data) or /home (persist_mode=home).
