@@ -36,9 +36,9 @@ log "Checking NET_MODE"
 mode="$(nic_mode)"           # dies on an invalid value
 ok "Network mode: ${mode}"
 
-log "Ensuring persist/ and share/ exist"
-mkdir -p "$PERSIST_DIR" "$(share_dir)"
-ok "persist/ and share/ present"
+log "Ensuring persist/ and the Sandbox folder exist"
+mkdir -p "$PERSIST_DIR" "$(sandbox_dir)"
+ok "persist/ and $(sandbox_dir) present"
 
 log "Checking SSH key: ${LAB_SSH_KEY}"
 if [[ -f "$LAB_SSH_KEY" ]]; then

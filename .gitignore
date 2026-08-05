@@ -6,10 +6,6 @@ images/*
 persist/*
 !persist/.gitkeep
 
-# Host<->guest shared folder contents (user files)
-share/*
-!share/.gitkeep
-
 # Generated per-deploy artifacts
 generated/
 *.seed.iso

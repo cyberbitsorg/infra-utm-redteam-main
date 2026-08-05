@@ -148,15 +148,15 @@ fi
 log "Building cloud-init seed for ${name}"
 seed="$("$(dirname "${BASH_SOURCE[0]}")/make-seed.sh" "$VM_NAME" "$mac" | tail -1)"
 
-share="$(share_dir)"
-mkdir -p "$share"
+sandbox="$(sandbox_dir)"
+mkdir -p "$sandbox"
 if [[ "$mode" == "nat" ]]; then
   log "Creating VM ${name} in UTM (nat NIC, ssh->127.0.0.1:${ssh_port}; mem ${ram}MiB, ${cpu} cpu, disk ${disk_gb}G, data ${DATA_DISK_GB:-40}G)"
 else
   log "Creating VM ${name} in UTM (bridged NIC, own LAN IP; mem ${ram}MiB, ${cpu} cpu, disk ${disk_gb}G, data ${DATA_DISK_GB:-40}G)"
 fi
 vm_id="$(osascript "$(dirname "${BASH_SOURCE[0]}")/create-vm.applescript" \
-  "$name" "$vm_disk" "$seed" "$ram" "$cpu" "$mac" "$ssh_port" "$mode" "$data_disk" "$share")"
+  "$name" "$vm_disk" "$seed" "$ram" "$cpu" "$mac" "$ssh_port" "$mode" "$data_disk" "$sandbox")"
 ok "Created ${name} (${vm_id})"
 
 log "Starting ${name}"
