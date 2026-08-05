@@ -25,8 +25,14 @@ on run argv
 	set dataDiskPath to item 9 of argv
 	set sharePath to item 10 of argv
 
+	-- Every POSIX file coercion has to happen HERE, outside the tell block
+	-- below. Inside it, a bare "POSIX file x" sitting in a record is sent to
+	-- UTM as an object for UTM to resolve, and it fails with
+	-- "Can't get POSIX file ..." (-1728).
 	set diskFile to POSIX file diskPath
 	set seedFile to POSIX file seedPath
+	set dataFile to missing value
+	if dataDiskPath is not "" then set dataFile to POSIX file dataDiskPath
 
 	tell application "UTM"
 		-- NIC per mode.
@@ -39,18 +45,23 @@ on run argv
 		-- Drives: OS + seed (non-removable so UTM uses VirtIO, not a USB CD-ROM
 		-- that hangs boot on UTM 4.7.x), plus the optional data disk as a 3rd
 		-- non-removable VirtIO drive.
-		if dataDiskPath is not "" then
-			set theDrives to {{removable:false, source:diskFile}, {removable:false, source:seedFile}, {removable:false, source:(POSIX file dataDiskPath)}}
+		if dataFile is not missing value then
+			set theDrives to {{removable:false, source:diskFile}, {removable:false, source:seedFile}, {removable:false, source:dataFile}}
 		else
 			set theDrives to {{removable:false, source:diskFile}, {removable:false, source:seedFile}}
 		end if
 
 		set cfg to {name:vmName, architecture:"aarch64", uefi:true, memory:memMiB, cpu cores:cpuCores, drives:theDrives, displays:{{hardware:"virtio-gpu-pci"}}, network interfaces:nics}
 
-		-- Optional host directory share. The exact key is confirmed by the Step 3
-		-- validation; if UTM's dictionary names it differently, change it here.
+		-- Optional host directory share. UTM 4.7.x only accepts a share source
+		-- path on the Apple backend: the qemu configuration record has no
+		-- "directory shares" property at all, just "directory share mode", and
+		-- passing the source anyway fails the whole creation with -1700. So all
+		-- we can do from here is switch VirtFS (9p) on, which gives the guest
+		-- the "share" tag that integration.yaml mounts. Point it at the host
+		-- folder once in UTM's VM settings; the choice sticks with the VM.
 		if sharePath is not "" then
-			set cfg to cfg & {directory shares:{{source:(POSIX file sharePath)}}}
+			set cfg to cfg & {directory share mode:VirtFS}
 		end if
 
 		set vm to make new virtual machine with properties {backend:qemu, configuration:cfg}

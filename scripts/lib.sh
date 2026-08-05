@@ -75,9 +75,11 @@ nic_mode() {
 
 # The single VM's fixed provisioning identity (one box, so no per-index math).
 # HOST_SSH_PORT is the NAT-mode host forward; bridged reaches port 22 on the
-# guest's own LAN IP instead.
+# guest's own LAN IP instead. Kept clear of the sibling repos' ranges, which
+# hand out 2200+index (redteam-lab) and 2300+index (anon-egress), so all three
+# labs can run at once.
 VM_MAC="52:54:00:AA:00:01"
-HOST_SSH_PORT=2201
+HOST_SSH_PORT=2400
 
 # Persistent data disk kept OUTSIDE the disposable OS lifecycle.
 data_disk_path() { echo "${PERSIST_DIR}/data.qcow2"; }

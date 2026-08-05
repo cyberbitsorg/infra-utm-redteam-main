@@ -79,7 +79,7 @@ The box has one NIC, whose mode is set by `NET_MODE` and passed straight to
 
 `nat` maps to UTM's `emulated` mode (QEMU SLIRP). The guest gets outbound
 internet, nothing reaches it except a `127.0.0.1` to guest `22` port forward on
-`HOST_SSH_PORT=2201` (`scripts/lib.sh`), and it works on any network, including
+`HOST_SSH_PORT=2400` (`scripts/lib.sh`), and it works on any network, including
 Wi-Fi with client isolation or a captive portal. Port forwards only work on
 `emulated`, which is why `nat` is not vmnet-backed.
 
@@ -91,7 +91,11 @@ port `22`. That IP comes from `utmctl ip-address`, which needs the guest's
 times out, the network probably isolates clients or blocks unknown DHCP
 clients: switch back to `nat`, or get in with `make console kali`.
 
-`make ssh` follows the same split: `127.0.0.1:2201` for `nat`, or
+The port is deliberately clear of the sibling repos, which use 2200 plus index
+(`infra-utm-redteam-lab`) and 2300 plus index (`infra-utm-anon-egress`), so all
+three can be up at the same time.
+
+`make ssh` follows the same split: `127.0.0.1:2400` for `nat`, or
 `ansible_host` from `ansible/inventory/hosts.generated.yaml` for `bridged`,
 falling back to a live `utmctl ip-address` query if that file is stale.
 
@@ -101,10 +105,13 @@ falling back to a live `utmctl ip-address` query if that file is stale.
 UTM's SPICE display gives ordinary copy/paste with macOS. Verify with
 `systemctl is-active spice-vdagentd`.
 
-`share/` is attached as a UTM directory share and mounted at `~/share` over 9p,
-with `nofail`, so a missing share never fails the Ansible run. It is the
-simplest way to carry dotfiles, `.ovpn` configs or loot in and out, and it
-survives `make destroy` because it lives on the Mac.
+`share/` is mounted at `~/share` in the guest over 9p, with `nofail`, so a
+missing share never fails the Ansible run. It is the simplest way to carry
+dotfiles, `.ovpn` configs or loot in and out, and it survives `make destroy`
+because it lives on the Mac. One manual step is needed once per VM: UTM's QEMU
+backend does not accept a share path over AppleScript, so provisioning can only
+turn VirtFS on. Open the VM's settings in UTM, point Shared Directory at this
+repo's `share/` folder, and the mount comes up on the next boot.
 
 The persistent disk (`persist/data.qcow2`, `DATA_DISK_GB`) is formatted ext4 on
 first use only and mounted per `PERSIST_MODE`. Under `home`, note that a
@@ -125,18 +132,18 @@ Also gitignored: `lab.conf` and `ansible/inventory/hosts.generated.yaml`.
 ## Make targets
 
 ```bash
-make help        # list all targets
-make preflight    # check tools, generate the lab SSH key
-make up           # full hands-off build: preflight, provision, configure
-make provision    # create and boot the VM only, no Ansible
-make configure    # run Ansible against the running VM
-make status       # show VM status
+make help          # list all targets
+make preflight     # check tools, generate the lab SSH key
+make up            # full hands-off build: preflight, provision, configure
+make provision     # create and boot the VM only, no Ansible
+make configure     # run Ansible against the running VM
+make status        # show VM status
 make ssh kali      # SSH into the box
-make console kali   # serial console (recovery path, any kernel)
-make down         # stop the VM (keeps it)
-make destroy      # stop and delete the VM; images/ and persist/ are kept
-make lint         # syntax-check scripts and Ansible
-make test         # run the shell unit tests
+make console kali  # serial console (recovery path, any kernel)
+make down          # stop the VM (keeps it)
+make destroy       # stop and delete the VM; images/ and persist/ are kept
+make lint          # syntax-check scripts and Ansible
+make test          # run the shell unit tests
 ```
 
 ## Safety
@@ -167,9 +174,9 @@ This box ships the full offensive Kali toolset with no isolation of its own.
 Provisioning drives UTM's AppleScript interface, so two things depend on the
 UTM version installed and are worth confirming on the first `make up`:
 
-- The directory share: whether UTM mounts `share/` as 9p or SPICE WebDAV.
-  `create-vm.applescript` is where to adjust it. Until it works, move files
-  with `scp` over the SSH port.
+- The directory share, since VirtFS is set from `create-vm.applescript` but the
+  host folder is picked in UTM's settings. Until it works, move files with
+  `scp` over the SSH port.
 - The data-disk round-trip. UTM imports `persist/data.qcow2` into its own VM
   bundle, so `make destroy` copies the live disk back out before deleting the
   VM, and the next `make up` re-attaches it. Test it with
