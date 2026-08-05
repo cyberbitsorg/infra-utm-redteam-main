@@ -53,6 +53,23 @@ make ssh kali
 creates and boots the VM, waits for SSH, then applies Ansible. Allow several
 minutes on first run for the image download and toolset install.
 
+## Commands
+
+```bash
+make help          # list all targets
+make preflight     # check tools, generate the lab SSH key
+make up            # full hands-off build: preflight, provision, configure
+make provision     # create and boot the VM only, no Ansible
+make configure     # run Ansible against the running VM
+make status        # show VM status
+make ssh kali      # SSH into the box
+make console kali  # serial console (recovery path, any kernel)
+make down          # stop the VM (keeps it)
+make destroy       # stop and delete the VM; images/ and persist/ are kept
+make lint          # syntax-check scripts and Ansible
+make test          # run the shell unit tests
+```
+
 ## Configuration
 
 `lab.conf` is copied from `lab.conf.example` and gitignored, so nothing in it
@@ -129,23 +146,6 @@ copy `/etc/skel` in first, or accept an empty home on the first boot.
 
 Also gitignored: `lab.conf` and `ansible/inventory/hosts.generated.yaml`.
 
-## Make targets
-
-```bash
-make help          # list all targets
-make preflight     # check tools, generate the lab SSH key
-make up            # full hands-off build: preflight, provision, configure
-make provision     # create and boot the VM only, no Ansible
-make configure     # run Ansible against the running VM
-make status        # show VM status
-make ssh kali      # SSH into the box
-make console kali  # serial console (recovery path, any kernel)
-make down          # stop the VM (keeps it)
-make destroy       # stop and delete the VM; images/ and persist/ are kept
-make lint          # syntax-check scripts and Ansible
-make test          # run the shell unit tests
-```
-
 ## Safety
 
 This box ships the full offensive Kali toolset with no isolation of its own.
@@ -157,17 +157,6 @@ This box ships the full offensive Kali toolset with no isolation of its own.
   Prefer `nat` unless you specifically need a LAN-facing attacker.
 - The console/GUI password (`ATTACKER_PASSWORD`) only guards local logins; SSH
   is always key-only.
-
-## Extending
-
-- Dotfiles and git identity: either symlink them out of `~/share` after each
-  boot, or set `PERSIST_MODE=home` so the guest simply remembers them.
-- HTB/THM VPN: drop the `.ovpn` into `share/` and run
-  `sudo openvpn --config ~/share/<name>.ovpn`. Nothing is auto-connected,
-  since targets and credentials are personal.
-- More than one machine: this repo is deliberately a single box, and a second
-  one would collide on the fixed MAC, host SSH port and data disk. Use the
-  sibling `infra-utm-redteam-lab` instead.
 
 ## Validate on first run
 
