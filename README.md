@@ -38,7 +38,7 @@ infra repos:
 don't already have one at `LAB_SSH_KEY`.
 
 > First run: macOS will ask permission the first time your terminal
-> controls UTM (a prompt, then System Settings → Privacy & Security →
+> controls UTM (a prompt, then System Settings > Privacy & Security >
 > Automation). Approve it, or provisioning cannot create the VM.
 
 ## Quick start
@@ -61,7 +61,7 @@ to day:
 
 | Setting | Values | Default | What it controls |
 |---|---|---|---|
-| `NET_MODE` | `nat` \| `bridged` | `nat` | `nat`: emulated SLIRP NIC, portable, host reaches the box via a `127.0.0.1` SSH forward. `bridged`: the box gets its own LAN IP; see `docs/networking.md` |
+| `NET_MODE` | `nat` \| `bridged` | `nat` | `nat`: emulated SLIRP NIC, portable, host reaches the box via a `127.0.0.1` SSH forward. `bridged`: the box gets its own LAN IP. See Networking below |
 | `KALI_TOOLSET` | `curated` \| `headless` \| `default` \| `large` | `default` | Which Kali metapackage to install (`kali-linux-default` is the standard installer set) |
 | `ATTACKER_GUI` | `xfce` \| `none` | `xfce` | Whether the XFCE desktop + LightDM greeter is installed |
 | `CLIPBOARD` | `yes` \| `no` | `yes` | SPICE clipboard sharing (`spice-vdagent`) between macOS and the guest desktop |
@@ -70,9 +70,46 @@ to day:
 | `VM_NAME` | string | `kali` | Short VM name; the UTM VM is `<LAB_PREFIX>-<VM_NAME>` |
 | `VM_CPU` / `VM_RAM` / `VM_DISK_GB` | integer | `4` / `8192` / `80` | VM resources (cores / MiB / GB) |
 
-See `lab.conf.example` for the full set (identity, image pin, etc.). This repo
-builds exactly one box; `docs/extending.md` covers dotfiles, VPN configs, and
-where the sibling `infra-utm-redteam-lab` fits if you need several machines.
+See `lab.conf.example` for the full set (identity, image pin, etc.).
+
+## Networking
+
+The box has one NIC, whose mode is set by `NET_MODE` and passed straight to
+`create-vm.applescript`.
+
+`nat` maps to UTM's `emulated` mode (QEMU SLIRP). The guest gets outbound
+internet, nothing reaches it except a `127.0.0.1` to guest `22` port forward on
+`HOST_SSH_PORT=2201` (`scripts/lib.sh`), and it works on any network, including
+Wi-Fi with client isolation or a captive portal. Port forwards only work on
+`emulated`, which is why `nat` is not vmnet-backed.
+
+`bridged` puts the guest on the physical LAN with its own DHCP address, so
+ARP spoofing, LLMNR/NBNS poisoning and inbound callbacks behave like a real
+host. There is no `127.0.0.1` forward here; the host connects to the LAN IP on
+port `22`. That IP comes from `utmctl ip-address`, which needs the guest's
+`qemu-guest-agent` reporting, and `make up` polls up to 3 minutes for it. If it
+times out, the network probably isolates clients or blocks unknown DHCP
+clients: switch back to `nat`, or get in with `make console kali`.
+
+`make ssh` follows the same split: `127.0.0.1:2201` for `nat`, or
+`ansible_host` from `ansible/inventory/hosts.generated.yaml` for `bridged`,
+falling back to a live `utmctl ip-address` query if that file is stale.
+
+## Host integration
+
+`CLIPBOARD=yes` installs `spice-vdagent` in the guest, which together with
+UTM's SPICE display gives ordinary copy/paste with macOS. Verify with
+`systemctl is-active spice-vdagentd`.
+
+`share/` is attached as a UTM directory share and mounted at `~/share` over 9p,
+with `nofail`, so a missing share never fails the Ansible run. It is the
+simplest way to carry dotfiles, `.ovpn` configs or loot in and out, and it
+survives `make destroy` because it lives on the Mac.
+
+The persistent disk (`persist/data.qcow2`, `DATA_DISK_GB`) is formatted ext4 on
+first use only and mounted per `PERSIST_MODE`. Under `home`, note that a
+brand-new empty disk mounted at `/home` shadows the cloud-init user's home:
+copy `/etc/skel` in first, or accept an empty home on the first boot.
 
 ## Directory layout
 
@@ -114,29 +151,30 @@ This box ships the full offensive Kali toolset with no isolation of its own.
 - The console/GUI password (`ATTACKER_PASSWORD`) only guards local logins; SSH
   is always key-only.
 
-## Documentation
+## Extending
 
-- [`docs/networking.md`](docs/networking.md): NAT vs bridged, how `make ssh`
-  resolves each, DHCP/isolation caveats
-- [`docs/host-integration.md`](docs/host-integration.md): clipboard, shared
-  folder, and data-disk persistence in detail
-- [`docs/extending.md`](docs/extending.md): dotfiles/git identity, HTB/THM
-  VPN, and multi-VM notes
+- Dotfiles and git identity: either symlink them out of `~/share` after each
+  boot, or set `PERSIST_MODE=home` so the guest simply remembers them.
+- HTB/THM VPN: drop the `.ovpn` into `share/` and run
+  `sudo openvpn --config ~/share/<name>.ovpn`. Nothing is auto-connected,
+  since targets and credentials are personal.
+- More than one machine: this repo is deliberately a single box, and a second
+  one would collide on the fixed MAC, host SSH port and data disk. Use the
+  sibling `infra-utm-redteam-lab` instead.
 
 ## Validate on first run
 
-Because provisioning talks to UTM's AppleScript interface, two things depend
-on the exact UTM version installed and are worth confirming on your first
-`make up` (see `docs/host-integration.md` for detail on both):
+Provisioning drives UTM's AppleScript interface, so two things depend on the
+UTM version installed and are worth confirming on the first `make up`:
 
-- The directory-share mechanism: whether UTM mounts `share/` into the
-  guest as 9p or SPICE WebDAV on your UTM version.
-- The data-disk destroy round-trip: that `make destroy` correctly copies
-  the live data disk back out to `persist/data.qcow2` before deleting the VM,
-  so `make up` afterward restores it intact.
-
-If either behaves unexpectedly, the fallback for both is documented in
-`docs/host-integration.md`.
+- The directory share: whether UTM mounts `share/` as 9p or SPICE WebDAV.
+  `create-vm.applescript` is where to adjust it. Until it works, move files
+  with `scp` over the SSH port.
+- The data-disk round-trip. UTM imports `persist/data.qcow2` into its own VM
+  bundle, so `make destroy` copies the live disk back out before deleting the
+  VM, and the next `make up` re-attaches it. Test it with
+  `echo loot | sudo tee /data/proof.txt`, then `make destroy && make up`, and
+  check the file is still there. If it is not, keep loot in `share/` instead.
 
 ## License
 

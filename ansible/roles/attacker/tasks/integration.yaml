@@ -126,4 +126,4 @@
   # NOTE: on a fresh data disk this mounts an empty /home OVER the cloud-init
   # user's home. The Task 7 validation confirms the first-boot ordering; if the
   # login user's home must be seeded, copy /etc/skel after mount. Documented in
-  # docs/host-integration.md.
+  # the README's Host integration section.
