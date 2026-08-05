@@ -72,6 +72,29 @@
     owner: "{{ ansible_user }}"
     group: "{{ attacker_user_group }}"
 
+# --- Cloud-init seed disk ---------------------------------------------------
+# The NoCloud seed (label "cidata") stays attached for the VM's whole life, so
+# udisks2 advertises it as a removable volume and the desktop shows an icon for
+# it. Nothing should ever mount it by hand, so hide it from udisks entirely.
+- name: Hide the cloud-init seed disk from the desktop
+  ansible.builtin.copy:
+    dest: /etc/udev/rules.d/99-hide-cidata.rules
+    owner: root
+    group: root
+    mode: "0644"
+    content: |
+      SUBSYSTEM=="block", ENV{ID_FS_LABEL}=="cidata", ENV{UDISKS_IGNORE}="1"
+  register: attacker_cidata_rule
+
+- name: Apply the seed-disk rule without a reboot
+  ansible.builtin.command:
+    cmd: "{{ item }}"
+  loop:
+    - udevadm control --reload
+    - udevadm trigger --subsystem-match=block --action=change
+  when: attacker_cidata_rule.changed
+  changed_when: true
+
 # --- Persistent data disk ---------------------------------------------------
 # The second VirtIO disk (persist/data.qcow2, imported by UTM). Format on first
 # use, then mount at /data (persist_mode=data) or /home (persist_mode=home).
