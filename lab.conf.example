@@ -62,7 +62,7 @@ DATA_DISK_GB=40
 
 # --- Resource defaults ------------------------------------------------------
 # Per-VM cpu= / ram= / disk= fields in LAB_VMS override these.
-LAB_CPU=6
+LAB_CPU=4
 LAB_RAM=8192
 LAB_DISK_GB=80
 
