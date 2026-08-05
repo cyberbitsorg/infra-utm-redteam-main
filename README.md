@@ -122,13 +122,40 @@ falling back to a live `utmctl ip-address` query if that file is stale.
 UTM's SPICE display gives ordinary copy/paste with macOS. Verify with
 `systemctl is-active spice-vdagentd`.
 
-`share/` is mounted at `~/share` in the guest over 9p, with `nofail`, so a
-missing share never fails the Ansible run. It is the simplest way to carry
-dotfiles, `.ovpn` configs or loot in and out, and it survives `make destroy`
-because it lives on the Mac. One manual step is needed once per VM: UTM's QEMU
-backend does not accept a share path over AppleScript, so provisioning can only
-turn VirtFS on. Open the VM's settings in UTM, point Shared Directory at this
-repo's `share/` folder, and the mount comes up on the next boot.
+### Sandbox: the shared folder
+
+`SANDBOX_DIR` on the Mac (`~/Sandbox` by default) appears in the guest as
+`~/Sandbox`. It lives outside the repo, so engagement files never sit in a git
+working tree, and it survives `make destroy` untouched because it is just a
+folder on the Mac. Use it for dotfiles, `.ovpn` configs and loot.
+
+Linking it takes one manual step per VM, and it cannot be automated: UTM's QEMU
+backend accepts a share path only from a file picker, never over AppleScript
+(the path is stored as a sandbox bookmark that only macOS can mint). Everything
+else is already wired up, so all you do is point UTM at the folder:
+
+1. `make down` if the VM is running. UTM only edits settings on a stopped VM.
+2. Open UTM, select `main-kali` in the sidebar, and click the sliders icon
+   (Edit selected VM).
+3. Pick `Sharing` in the settings list.
+4. Leave `Directory Share Mode` on `VirtFS`. Provisioning already set it; if it
+   reads `None`, set it to `VirtFS`.
+5. Next to `Shared Directory`, click `Browse` and choose your `~/Sandbox`
+   folder. Leave the read-only box unchecked so the guest can write back.
+6. Click `Save`, then `make up` to boot the VM again.
+7. `make configure` mounts it, or run `sudo mount -a` in the guest.
+
+Check it landed:
+
+```bash
+make ssh kali
+mountpoint -q ~/Sandbox && echo mounted || echo "not mounted"
+```
+
+The 9p mount tag is always `share`, whatever the folders are named on either
+side, so [integration.yaml](ansible/roles/attacker/tasks/integration.yaml)
+mounts `src: share`. That mount is `nofail`: skip the steps above and you get an
+empty `~/Sandbox`, not a broken build.
 
 The persistent disk (`persist/data.qcow2`, `DATA_DISK_GB`) is formatted ext4 on
 first use only and mounted per `PERSIST_MODE`. Under `home`, note that a
@@ -141,7 +168,7 @@ copy `/etc/skel` in first, or accept an empty home on the first boot.
 |---|---|---|
 | `images/` | The verified ARM64 Kali base image + checksums | Fetched once; kept by `make destroy` |
 | `persist/` | The persistent data disk (`data.qcow2`) | Kept by `make destroy`; re-attached on the next `make up` |
-| `share/` | Host-side shared folder, live-mounted into the guest at `~/share` | User-managed; not touched by the tooling |
+| `SANDBOX_DIR` (`~/Sandbox`, outside the repo) | Host-side shared folder, live-mounted into the guest at `~/Sandbox` | User-managed; not touched by the tooling |
 | `generated/` | Per-build OS staging disk + cloud-init seed ISO | Rebuilt every `make up`; wiped by `make destroy` |
 
 Also gitignored: `lab.conf` and `ansible/inventory/hosts.generated.yaml`.
@@ -170,7 +197,7 @@ UTM version installed and are worth confirming on the first `make up`:
   bundle, so `make destroy` copies the live disk back out before deleting the
   VM, and the next `make up` re-attaches it. Test it with
   `echo loot | sudo tee /data/proof.txt`, then `make destroy && make up`, and
-  check the file is still there. If it is not, keep loot in `share/` instead.
+  check the file is still there. If it is not, keep loot in `~/Sandbox` instead.
 
 ## License
 
