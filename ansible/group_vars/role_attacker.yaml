@@ -24,10 +24,6 @@ attacker_packages: >-
      else attacker_packages_large if attacker_toolset == 'large'
      else attacker_packages_default }}
 
-# Extra kali-tools-* groups, additive on top of the toolset. up.sh passes
-# -e kali_tool_groups from KALI_TOOL_GROUPS (space/comma separated, no prefix).
-kali_tool_groups: ""
-
 # Desktop and console. up.sh passes these from lab.conf.
 attacker_gui: xfce
 attacker_clipboard: "yes"

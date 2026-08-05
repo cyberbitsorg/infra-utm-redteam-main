@@ -42,12 +42,6 @@ CLIPBOARD="yes"
 #   large    : kali-linux-large
 KALI_TOOLSET="default"
 
-# Extra kali-tools-* function groups, additive on top of KALI_TOOLSET. Space
-# or comma separated, WITHOUT the kali-tools- prefix. Empty installs none.
-# Groups: top10, web, passwords, database, exploitation, forensics, fuzzing,
-# information-gathering, post-exploitation, reverse-engineering, wireless, ...
-KALI_TOOL_GROUPS=""
-
 # --- Persistence ------------------------------------------------------------
 # A second disk in persist/ that survives 'make destroy' and is re-attached on
 # the next 'make up', so a rebuild gives a fresh OS with your work intact.
@@ -64,7 +58,7 @@ DATA_DISK_GB=40
 # The UTM VM is named <LAB_PREFIX>-<VM_NAME>.
 VM_NAME="kali"
 VM_CPU=4
-VM_RAM=8192        # MiB
+VM_RAM=8192
 VM_DISK_GB=80
 
 # --- Base image (ARM64 / aarch64) -------------------------------------------

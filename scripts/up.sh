@@ -39,7 +39,6 @@ run_ansible() {
       -e "attacker_gui=${ATTACKER_GUI:-xfce}" \
       -e "attacker_clipboard=${CLIPBOARD:-yes}" \
       -e "persist_mode=${PERSIST_MODE:-data}" \
-      -e "kali_tool_groups=${KALI_TOOL_GROUPS:-}" \
       -e "@${vars_file}" )
   ok "Configuration complete"
 }

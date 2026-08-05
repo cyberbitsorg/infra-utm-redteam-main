@@ -80,7 +80,6 @@ to day:
 |---|---|---|---|
 | `NET_MODE` | `nat` \| `bridged` | `nat` | `nat`: emulated SLIRP NIC, portable, host reaches the box via a `127.0.0.1` SSH forward. `bridged`: the box gets its own LAN IP; see `docs/networking.md` |
 | `KALI_TOOLSET` | `curated` \| `headless` \| `default` \| `large` | `default` | Which Kali metapackage to install (`kali-linux-default` is the standard installer set) |
-| `KALI_TOOL_GROUPS` | space/comma-separated group names | `""` | Extra `kali-tools-*` function groups, **additive** on top of `KALI_TOOLSET` |
 | `ATTACKER_GUI` | `xfce` \| `none` | `xfce` | Whether the XFCE desktop + LightDM greeter is installed |
 | `CLIPBOARD` | `yes` \| `no` | `yes` | SPICE clipboard sharing (`spice-vdagent`) between macOS and the guest desktop |
 | `PERSIST_MODE` | `data` \| `home` | `data` | `data`: persistent disk mounted at `/data` (`~/engagements` symlinked to it), home is clean on every rebuild. `home`: the persistent disk *is* `/home`, so dotfiles/keys/tool state survive rebuilds too |

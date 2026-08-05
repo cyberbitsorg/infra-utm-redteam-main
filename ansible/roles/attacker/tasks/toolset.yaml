@@ -6,20 +6,6 @@
     update_cache: true
     cache_valid_time: 3600
 
-- name: Normalise the extra tool-group list
-  ansible.builtin.set_fact:
-    attacker_tool_group_list: >-
-      {{ (kali_tool_groups | default('') | regex_replace(',', ' ')).split()
-         | map('regex_replace', '^(.*)$', 'kali-tools-\1') | list }}
-
-- name: Install extra Kali tool groups (additive)
-  ansible.builtin.apt:
-    name: "{{ attacker_tool_group_list }}"
-    state: present
-    update_cache: true
-    cache_valid_time: 3600
-  when: attacker_tool_group_list | length > 0
-
 - name: Check for the Metasploit database helper
   ansible.builtin.stat:
     path: /usr/bin/msfdb
