@@ -33,22 +33,23 @@
     state: started
   when: attacker_clipboard | default('yes') | bool
 
-# --- Shared folder ----------------------------------------------------------
-# UTM exposes the host share/ over VirtFS (9p, tag typically "share") or SPICE
-# WebDAV. Mount 9p if the guest sees the tag; otherwise leave a note. Which
-# mechanism UTM actually uses is validated on the first live `make up`, not
-# confirmed ahead of time.
-- name: Ensure the shared-folder mount point exists
+# --- Sandbox (shared folder) ------------------------------------------------
+# The host folder (SANDBOX_DIR, ~/Sandbox by default) appears here as ~/Sandbox.
+# UTM serves it over VirtFS, whose 9p mount tag is always "share" regardless of
+# what the folder is called on either side, so src below is the tag, not a path.
+# The mount only works once the folder is selected in UTM's VM settings, so this
+# is nofail: an unconfigured share leaves an empty ~/Sandbox, not a failed run.
+- name: Ensure the Sandbox mount point exists
   ansible.builtin.file:
-    path: "/home/{{ ansible_user }}/share"
+    path: "/home/{{ ansible_user }}/Sandbox"
     state: directory
     owner: "{{ ansible_user }}"
     group: "{{ attacker_user_group }}"
     mode: "0755"
 
-- name: Mount the UTM shared folder over 9p (if present)
+- name: Mount the UTM Sandbox share over 9p (if present)
   ansible.posix.mount:
-    path: "/home/{{ ansible_user }}/share"
+    path: "/home/{{ ansible_user }}/Sandbox"
     src: share
     fstype: 9p
     opts: "trans=virtio,version=9p2000.L,rw,_netdev,nofail,msize=104857600"
