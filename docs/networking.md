@@ -1,62 +1,51 @@
 # Networking
 
-The box has **one NIC**, whose mode is chosen by `NET_MODE` in `lab.conf` and
-passed straight through to `create-vm.applescript`. Unlike the multi-VM lab
-sibling (which gives every VM two NICs — a NAT uplink plus a shared isolated
-lab segment), this repo is a single general-purpose box, so there is exactly
-one interface and it does double duty: internet access and how the host
-reaches the guest.
+The box has one NIC. Its mode comes from `NET_MODE` in `lab.conf` and is passed
+straight through to `create-vm.applescript`. That single interface does double
+duty: internet access for the guest, and how the host reaches it.
 
 ## `nat` (default)
 
-UTM `emulated` mode — QEMU user-mode networking (SLIRP).
+UTM `emulated` mode, i.e. QEMU user-mode networking (SLIRP).
 
-- The guest gets outbound internet and can see the host's LAN, but nothing on
-  the host or LAN can reach the guest directly; the only way in is the port
-  forward below.
-- UTM sets up a `127.0.0.1` → guest `22` port forward as part of the NIC
-  config. The host port is fixed at `HOST_SSH_PORT=2201` (in `scripts/lib.sh`),
-  so the box is reachable at `127.0.0.1:2201`.
-- Portable: works on any network, including Wi-Fi with client isolation or a
-  captive portal, since the guest's traffic rides out through the host's own
-  stack.
-- Hostfwd works only on `emulated` — UTM's `shared`/vmnet-backed modes
-  silently ignore port forwards, which is why `nat` maps to `emulated` and not
-  something vmnet-based.
+- Outbound internet works and the guest can see the host's LAN, but nothing can
+  reach the guest except through the port forward.
+- UTM sets up a `127.0.0.1` to guest `22` forward as part of the NIC config. The
+  host port is fixed at `HOST_SSH_PORT=2201` (`scripts/lib.sh`), so the box
+  lives at `127.0.0.1:2201`.
+- Works on any network, including Wi-Fi with client isolation or a captive
+  portal, since guest traffic rides out through the host's own stack.
+- Hostfwd works only on `emulated`. UTM's `shared`/vmnet-backed modes silently
+  ignore port forwards, which is why `nat` maps to `emulated`.
 
 ## `bridged`
 
-UTM `bridged` mode — vmnet-bridged, using the physical NIC directly.
+UTM `bridged` mode, vmnet-bridged on the physical NIC.
 
-- The guest gets its own address via DHCP on the physical LAN and behaves as
-  a first-class host on that network: LLMNR/NBNS poisoning, ARP spoofing,
-  and inbound callbacks (reverse shells, etc.) all work the way they would
-  from a real machine on the wire.
-- There is **no** `127.0.0.1` port forward in this mode — hostfwd is a SLIRP
-  feature and bridged traffic never touches SLIRP. The host reaches the guest
-  by its LAN IP instead, on the normal port `22`.
-- The LAN IP is discovered through `utmctl ip-address <vm>`, which depends on
-  the guest's `qemu-guest-agent` (installed by cloud-init) being up and
-  reporting. `scripts/up.sh` polls this for up to 3 minutes after creating a
-  bridged VM before moving on to Ansible.
-- **Requires DHCP on the network, and no client isolation.** Some Wi-Fi
-  networks (coffee shops, some corporate/guest SSIDs) isolate clients from
-  each other or block unrecognised DHCP clients; bridged mode will hang
-  waiting for an address on those networks. If `make up` times out with
-  "Timed out getting `<vm>` LAN IP", the network is the likely cause — switch
-  back to `nat`, or use `make console kali` for the serial fallback.
+- The guest gets its own DHCP address on the physical LAN and behaves like a
+  real host on the wire: LLMNR/NBNS poisoning, ARP spoofing and inbound
+  callbacks all work.
+- There is no `127.0.0.1` port forward here; hostfwd is a SLIRP feature and
+  bridged traffic never touches SLIRP. The host reaches the guest by LAN IP on
+  port `22`.
+- The LAN IP comes from `utmctl ip-address <vm>`, which needs the guest's
+  `qemu-guest-agent` (installed by cloud-init) up and reporting.
+  `scripts/up.sh` polls for up to 3 minutes before moving on to Ansible.
+- Requires DHCP on the network and no client isolation. Coffee-shop and some
+  corporate or guest SSIDs isolate clients or block unknown DHCP clients, and
+  bridged mode will hang waiting for an address there. If `make up` reports
+  "Timed out getting `<vm>` LAN IP", switch back to `nat` or use
+  `make console kali`.
 
 ## How `make ssh` resolves each mode
 
 `scripts/ssh.sh` branches the same way `up.sh` does:
 
-- **`nat`**: connects to `127.0.0.1:2201` (`HOST_SSH_PORT`) directly — no
-  lookup needed.
-- **`bridged`**: reads `ansible_host` for the VM out of the generated
-  inventory (`ansible/inventory/hosts.generated.yaml`, written by
-  `scripts/gen-inventory.sh` during `make up`). If that's missing or stale
-  (e.g. `make up` hasn't run since a reboot), it falls back to querying
-  `utmctl ip-address` directly, on port `22`.
+- `nat`: connects to `127.0.0.1:2201` (`HOST_SSH_PORT`) directly.
+- `bridged`: reads `ansible_host` for the VM from the generated inventory
+  (`ansible/inventory/hosts.generated.yaml`, written by
+  `scripts/gen-inventory.sh` during `make up`). If that is missing or stale, it
+  falls back to querying `utmctl ip-address`, on port `22`.
 
 Both paths use the same key (`priv_key()`, derived from `LAB_SSH_KEY`) and
 connect as `LAB_USER`.
@@ -65,13 +54,11 @@ connect as `LAB_USER`.
 
 `create-vm.applescript` sets the NIC mode and, for `nat`, the port forward,
 using UTM's scripting dictionary property names. Those names are the single
-integration point with UTM and can shift between UTM versions. If VM creation
-fails with a property error, or a `nat` VM comes up without its port forward
-working, that's the place to check — adjust the property there only, nothing
-else in the repo needs to change.
+integration point with UTM and can shift between versions. If VM creation fails
+with a property error, or a `nat` VM comes up without a working forward, fix the
+property there; nothing else in the repo needs to change.
 
-Also note: the very first time your terminal drives UTM via AppleScript,
-macOS prompts for Automation permission (a system dialog, then
-System Settings → Privacy & Security → Automation). Until that's approved,
-`create-vm.applescript` — and therefore `make up` in either network mode —
-cannot create the VM at all.
+Note also that the first time your terminal drives UTM over AppleScript, macOS
+prompts for Automation permission (System Settings > Privacy & Security >
+Automation). Until that is approved, `create-vm.applescript`, and therefore
+`make up` in either mode, cannot create the VM at all.
