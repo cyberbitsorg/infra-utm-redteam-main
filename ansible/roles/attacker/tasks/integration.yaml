@@ -3,6 +3,20 @@
 # data disk mounted per persist_mode. No anonymity invariant here, so these are
 # all fine.
 
+# --- Lab user identity ------------------------------------------------------
+# cloud-init deliberately creates the user with no_user_group, so no group is
+# named after LAB_USER and the primary group is useradd's default (users).
+# Resolve the real one rather than assuming user == group, or every owner/group
+# task below dies with "chgrp failed: failed to look up group <user>".
+- name: Look up the lab user's primary group
+  ansible.builtin.getent:
+    database: passwd
+    key: "{{ ansible_user }}"
+
+- name: Remember the lab user's primary GID
+  ansible.builtin.set_fact:
+    attacker_user_group: "{{ getent_passwd[ansible_user][2] }}"
+
 # --- Clipboard (SPICE) ------------------------------------------------------
 - name: Install or remove the SPICE guest agent (clipboard)
   ansible.builtin.apt:
@@ -29,7 +43,7 @@
     path: "/home/{{ ansible_user }}/share"
     state: directory
     owner: "{{ ansible_user }}"
-    group: "{{ ansible_user }}"
+    group: "{{ attacker_user_group }}"
     mode: "0755"
 
 - name: Mount the UTM shared folder over 9p (if present)
@@ -99,7 +113,7 @@
     state: link
     force: true
     owner: "{{ ansible_user }}"
-    group: "{{ ansible_user }}"
+    group: "{{ attacker_user_group }}"
   when: persist_mode | default('data') == 'data'
 
 - name: Own /data for the user
@@ -107,7 +121,7 @@
     path: /data
     state: directory
     owner: "{{ ansible_user }}"
-    group: "{{ ansible_user }}"
+    group: "{{ attacker_user_group }}"
     mode: "0755"
   when:
     - (data_dev.stdout | trim) | length > 0
