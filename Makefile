@@ -48,7 +48,6 @@ destroy: ## Stop and delete the VM and generated artifacts (persist/ + images/ k
 	@scripts/destroy.sh
 
 test: ## Run the shell unit tests
-	@bash tests/parse-vm-entry.sh
 	@bash tests/nic-mode.sh
 	@bash tests/persist-roundtrip.sh
 

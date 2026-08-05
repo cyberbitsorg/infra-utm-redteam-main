@@ -34,12 +34,10 @@ require_lab_conf_vars() {
   : "${LAB_PREFIX:?LAB_PREFIX missing in lab.conf}"
   : "${LAB_USER:?LAB_USER missing in lab.conf}"
   : "${LAB_SSH_KEY:?LAB_SSH_KEY missing in lab.conf}"
-  # parse_vm_entry falls back to these for any fleet entry that omits
-  # cpu=/ram=/disk=, so every script that touches the fleet needs them, not
-  # just create-vm.sh.
-  : "${LAB_CPU:?LAB_CPU missing in lab.conf}"
-  : "${LAB_RAM:?LAB_RAM missing in lab.conf}"
-  : "${LAB_DISK_GB:?LAB_DISK_GB missing in lab.conf}"
+  : "${VM_NAME:?VM_NAME missing in lab.conf}"
+  : "${VM_CPU:?VM_CPU missing in lab.conf}"
+  : "${VM_RAM:?VM_RAM missing in lab.conf}"
+  : "${VM_DISK_GB:?VM_DISK_GB missing in lab.conf}"
 }
 
 load_config() {
@@ -53,69 +51,14 @@ load_config() {
   LAB_SSH_KEY="${LAB_SSH_KEY/#\$\{HOME\}/$HOME}"
 }
 
-# Full UTM VM name for a short role name (e.g. attacker -> redteam-attacker).
+# Full UTM VM name for a short name (e.g. kali -> redteam-kali).
 vm_name() { echo "${LAB_PREFIX}-$1"; }
 
 # Private key path derived from the public key in lab.conf.
 priv_key() { echo "${LAB_SSH_KEY%.pub}"; }
 
-# Every VM in this repo is Kali; kept as a function so the fleet can grow.
-role_image() { echo "${IMAGES_DIR}/${KALI_IMG_FILE}"; }
-
-# Parse one LAB_VMS entry into VM_SHORT / VM_ROLE / VM_CPU / VM_RAM / VM_DISK.
-#
-# Entry syntax: "name:role [cpu=N] [ram=MiB] [disk=GB]"
-# The resource fields are optional and order-free; each one falls back to the
-# lab-wide LAB_CPU / LAB_RAM / LAB_DISK_GB. Omitting ":role" makes the role the
-# same as the name.
-#
-# This is the ONLY place that knows the fleet syntax. Bash 3.2 has no
-# associative arrays, so the result comes back as globals.
-parse_vm_entry() {
-  local entry="${1:?entry required}"
-  local spec fields field key val
-
-  # Split off the "name:role" head at the first space; the rest are fields.
-  spec="${entry%% *}"
-  if [[ "$entry" == *" "* ]]; then
-    fields="${entry#* }"
-  else
-    fields=""
-  fi
-
-  # Split the head at the FIRST colon, so a colon in a field can never be
-  # mistaken for the role separator.
-  VM_SHORT="${spec%%:*}"
-  VM_ROLE="${spec#*:}"
-  [[ -n "$VM_SHORT" ]] || die "LAB_VMS entry '${entry}' has no VM name."
-  [[ -n "$VM_ROLE" ]] || die "LAB_VMS entry '${entry}' has an empty role."
-
-  VM_CPU="$LAB_CPU"
-  VM_RAM="$LAB_RAM"
-  VM_DISK="$LAB_DISK_GB"
-
-  # Deliberate word splitting: the fields are space separated.
-  # shellcheck disable=SC2086
-  for field in $fields; do
-    [[ "$field" == *=* ]] \
-      || die "LAB_VMS entry '${entry}': '${field}' is not key=value. Valid keys: cpu, ram, disk."
-    key="${field%%=*}"
-    val="${field#*=}"
-    # Check the key before the value, so 'mem=abc' complains about 'mem'
-    # rather than about the number.
-    case "$key" in
-      cpu|ram|disk) ;;
-      *) die "LAB_VMS entry '${entry}': unknown field '${key}'. Valid keys: cpu, ram, disk." ;;
-    esac
-    [[ "$val" =~ ^[1-9][0-9]*$ ]] \
-      || die "LAB_VMS entry '${entry}': ${key} must be a positive whole number, got '${val}'."
-    case "$key" in
-      cpu)  VM_CPU="$val" ;;
-      ram)  VM_RAM="$val" ;;
-      disk) VM_DISK="$val" ;;
-    esac
-  done
-}
+# The box always runs Kali.
+base_image() { echo "${IMAGES_DIR}/${KALI_IMG_FILE}"; }
 
 # --- Networking mode --------------------------------------------------------
 # NET_MODE decides the single NIC's mode. 'nat' (default) is the portable
@@ -130,10 +73,11 @@ nic_mode() {
   esac
 }
 
-# Host SSH port for a VM index (NAT mode only; bridged reaches port 22 on the
-# guest's own LAN IP).
-SSH_PORT_BASE="${SSH_PORT_BASE:-2200}"
-ssh_port_for() { echo "$(( SSH_PORT_BASE + ${1:?index required} ))"; }
+# The single VM's fixed provisioning identity (one box, so no per-index math).
+# HOST_SSH_PORT is the NAT-mode host forward; bridged reaches port 22 on the
+# guest's own LAN IP instead.
+VM_MAC="52:54:00:AA:00:01"
+HOST_SSH_PORT=2201
 
 # Persistent data disk kept OUTSIDE the disposable OS lifecycle.
 data_disk_path() { echo "${PERSIST_DIR}/data.qcow2"; }

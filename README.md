@@ -45,7 +45,7 @@ for the full design rationale behind these choices.
   or the built-in macOS `hdiutil`, used automatically if `xorriso` is absent
 - `ansible`: `brew install ansible`
 - Free disk space: plan for **~40 GB or more**. The base image download is a
-  few GB; the OS disk defaults to `LAB_DISK_GB=80` and the persistent data
+  few GB; the OS disk defaults to `VM_DISK_GB=80` and the persistent data
   disk to `DATA_DISK_GB=40`, but both are thin-provisioned (qcow2/raw), so
   actual usage starts well below that and grows with what you install and
   save. The default `KALI_TOOLSET=default` plus the always-on XFCE desktop is
@@ -85,10 +85,12 @@ to day:
 | `CLIPBOARD` | `yes` \| `no` | `yes` | SPICE clipboard sharing (`spice-vdagent`) between macOS and the guest desktop |
 | `PERSIST_MODE` | `data` \| `home` | `data` | `data`: persistent disk mounted at `/data` (`~/engagements` symlinked to it), home is clean on every rebuild. `home`: the persistent disk *is* `/home`, so dotfiles/keys/tool state survive rebuilds too |
 | `DATA_DISK_GB` | integer | `40` | Size of the persistent disk at first creation; never shrunk |
-| `LAB_CPU` / `LAB_RAM` / `LAB_DISK_GB` | integer | `6` / `8192` / `80` | Default VM resources, overridable per `LAB_VMS` entry |
+| `VM_NAME` | string | `kali` | Short VM name; the UTM VM is `<LAB_PREFIX>-<VM_NAME>` |
+| `VM_CPU` / `VM_RAM` / `VM_DISK_GB` | integer | `4` / `8192` / `80` | VM resources (cores / MiB / GB) |
 
-See `lab.conf.example` for the full set (identity, image pin, etc.) and
-`docs/extending.md` for growing `LAB_VMS` into more than one machine.
+See `lab.conf.example` for the full set (identity, image pin, etc.). This repo
+builds exactly one box; `docs/extending.md` covers dotfiles, VPN configs, and
+where the sibling `infra-utm-redteam-lab` fits if you need several machines.
 
 ## Directory layout
 
@@ -137,7 +139,7 @@ This box ships the full offensive Kali toolset with no isolation of its own.
 - [`docs/host-integration.md`](docs/host-integration.md) — clipboard, shared
   folder, and data-disk persistence in detail
 - [`docs/extending.md`](docs/extending.md) — dotfiles/git identity, HTB/THM
-  VPN, growing into a multi-VM fleet
+  VPN, and multi-VM notes
 
 ## Validate on first run
 

@@ -1,18 +1,16 @@
 #!/usr/bin/env bash
-# Render a cloud-init NoCloud seed ISO for one VM.
-# Usage: make-seed.sh <short-name> <role> <mac>
+# Render a cloud-init NoCloud seed ISO for the VM.
+# Usage: make-seed.sh <name> <mac>
 source "$(dirname "${BASH_SOURCE[0]}")/lib.sh"
 
 load_config
-short="${1:?short name required}"
-role="${2:?role required}"
-mac="${3:?nic mac required}"
+short="${1:?name required}"
+mac="${2:?nic mac required}"
 
 mkdir -p "$GEN_DIR"
 work="$(mktemp -d)"
 trap 'rm -rf "$work"' EXIT
 
-# The box's only role is attacker, but its image and cloud-init are Kali.
 template="${CLOUDINIT_DIR}/kali.user-data.yaml"
 [[ -f "$template" ]] || template="${CLOUDINIT_DIR}/default.user-data.yaml"
 [[ -f "$template" ]] || die "No cloud-init template found in ${CLOUDINIT_DIR}"

@@ -1,34 +1,26 @@
 #!/usr/bin/env bash
-# Create, seed and start one lab VM, or bring an existing one in line with the
-# fleet.
-# Usage: create-vm.sh <index> <short-name> <role> <cpu> <ram-mib> <disk-gb>
-# Index (>=1) drives deterministic MAC addresses and host SSH port.
-# Resources come from the caller (scripts/up.sh parses them out of LAB_VMS), so
-# this script never reads LAB_CPU/LAB_RAM/LAB_DISK_GB itself.
+# Create, seed and start the Kali box, or bring an existing VM in line with the
+# cpu/ram in lab.conf. Reads its configuration from lab.conf; takes no arguments.
 source "$(dirname "${BASH_SOURCE[0]}")/lib.sh"
 
 load_config
-idx="${1:?index required}"
-short="${2:?short name required}"
-role="${3:?role required}"
-cpu="${4:?cpu cores required}"
-ram="${5:?ram in MiB required}"
-disk_gb="${6:?disk size in GB required}"
 
-name="$(vm_name "$short")"
-mac="$(printf '52:54:00:AA:00:%02X' "$idx")"
+name="$(vm_name "$VM_NAME")"
+mac="$VM_MAC"
+cpu="$VM_CPU"
+ram="$VM_RAM"
+disk_gb="$VM_DISK_GB"
 mode="$(nic_mode)"
 if [[ "$mode" == "nat" ]]; then
-  ssh_port="$(ssh_port_for "$idx")"
+  ssh_port="$HOST_SSH_PORT"
 else
   ssh_port=0
 fi
 
-# Bring an existing VM in line with the fleet: cpu/ram through UTM. A
-# fleet disk= change cannot be applied to a VM that already exists (see the
-# comment below), so it is only ever compared and reported, never acted on.
-# Only stops and starts the VM when cpu/ram really differ, so a repeat
-# 'make up' on an unchanged lab restarts nothing.
+# Bring an existing VM in line with lab.conf: cpu/ram through UTM. A disk= change
+# cannot be applied to a VM that already exists (see the comment below), so it is
+# only ever compared and reported, never acted on. Only stops and starts the VM
+# when cpu/ram really differ, so a repeat 'make up' restarts nothing.
 reconcile_existing_vm() {
   local want_cpu="$1" want_ram="$2" want_disk_gb="$3"
   local cur cur_cpu cur_ram disk candidate cur_bytes want_bytes cur_gb
@@ -64,9 +56,9 @@ reconcile_existing_vm() {
     if [[ -n "$cur_bytes" ]]; then
       cur_gb=$(( cur_bytes / 1024 / 1024 / 1024 ))
       if [[ "$want_bytes" -gt "$cur_bytes" ]]; then
-        warn "${name}: disk=${want_disk_gb}G is larger than the ${cur_gb}G it was created with. A disk cannot be grown on a VM that already exists in UTM; run 'make destroy' then 'make up' to rebuild it at the new size."
+        warn "${name}: VM_DISK_GB=${want_disk_gb} is larger than the ${cur_gb}G it was created with. A disk cannot be grown on a VM that already exists in UTM; run 'make destroy' then 'make up' to rebuild it at the new size."
       elif [[ "$want_bytes" -lt "$cur_bytes" ]]; then
-        warn "${name}: disk=${want_disk_gb}G is below the current ${cur_gb}G. Disks are never shrunk, leaving it as is."
+        warn "${name}: VM_DISK_GB=${want_disk_gb} is below the current ${cur_gb}G. Disks are never shrunk, leaving it as is."
       fi
     else
       warn "${name}: could not check its disk size (qemu-img could not read ${disk})"
@@ -76,7 +68,7 @@ reconcile_existing_vm() {
   fi
 
   # No hardware change: nothing to reconfigure, but 'make up' must still bring a
-  # stopped VM up (after a reboot or 'make down' the fleet is unchanged yet the
+  # stopped VM up (after a reboot or 'make down' the config is unchanged yet the
   # VM is not running). Without this, up.sh would wait on SSH for a VM nothing
   # ever started and time out. Starting an already-running VM is a no-op.
   if [[ "$change_hw" -eq 0 ]]; then
@@ -110,12 +102,12 @@ fi
 
 log "Preparing disk for ${name}"
 mkdir -p "$GEN_DIR"
-base_img="$(role_image "$role")"
-[[ -f "$base_img" ]] || die "Base image for role '${role}' missing (${base_img}). Run scripts/fetch-images.sh first."
+base_img="$(base_image)"
+[[ -f "$base_img" ]] || die "Base image missing (${base_img}). Run scripts/fetch-images.sh first."
 QEMU_IMG="$(find_qemu_img)" || die "qemu-img not found"
 
 # Name the working disk by its actual format so UTM/QEMU never guess wrong
-# (Ubuntu ships qcow2-in-.img, Kali ships raw-in-.raw).
+# (Kali ships raw-in-.raw).
 img_fmt="$("$QEMU_IMG" info "$base_img" | sed -n 's/^file format: //p' | head -1)"
 case "$img_fmt" in
   qcow2) vm_disk="${GEN_DIR}/${name}.qcow2" ;;
@@ -154,7 +146,7 @@ if [[ ! -f "$data_disk" ]]; then
 fi
 
 log "Building cloud-init seed for ${name}"
-seed="$("$(dirname "${BASH_SOURCE[0]}")/make-seed.sh" "$short" "$role" "$mac" | tail -1)"
+seed="$("$(dirname "${BASH_SOURCE[0]}")/make-seed.sh" "$VM_NAME" "$mac" | tail -1)"
 
 share="$(share_dir)"
 mkdir -p "$share"

@@ -8,19 +8,12 @@
 source "$(dirname "${BASH_SOURCE[0]}")/lib.sh"
 load_config
 
-short="${1:?Usage: make console <short-name> (e.g. kali)}"
+short="${1:-$VM_NAME}"
 
-# Validate against the fleet so a typo names the known VMs instead of failing
-# inside AppleScript.
-found=0; known=""
-for entry in "${LAB_VMS[@]}"; do
-  parse_vm_entry "$entry"
-  known+="${VM_SHORT} "
-  [[ "$VM_SHORT" == "$short" ]] && found=1
-done
-[[ "$found" == "1" ]] || die "Unknown VM '${short}'. Known: ${known}"
+# Validate the name so a typo fails clearly instead of inside AppleScript.
+[[ "$short" == "$VM_NAME" ]] || die "Unknown VM '${short}'. This box is '${VM_NAME}'."
 
-name="$(vm_name "$short")"
+name="$(vm_name "$VM_NAME")"
 [[ "$(vm_status "$name")" == "started" ]] \
   || die "${name} is not running (status: $(vm_status "$name" || echo 'not created')). Run 'make up' first."
 

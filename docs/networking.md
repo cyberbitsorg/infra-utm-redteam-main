@@ -15,9 +15,8 @@ UTM `emulated` mode — QEMU user-mode networking (SLIRP).
   the host or LAN can reach the guest directly; the only way in is the port
   forward below.
 - UTM sets up a `127.0.0.1` → guest `22` port forward as part of the NIC
-  config. The host port is `SSH_PORT_BASE + index` (`SSH_PORT_BASE=2200` by
-  default), so the first VM in `LAB_VMS` (`kali`, index 1) is reachable at
-  `127.0.0.1:2201`.
+  config. The host port is fixed at `HOST_SSH_PORT=2201` (in `scripts/lib.sh`),
+  so the box is reachable at `127.0.0.1:2201`.
 - Portable: works on any network, including Wi-Fi with client isolation or a
   captive portal, since the guest's traffic rides out through the host's own
   stack.
@@ -51,7 +50,7 @@ UTM `bridged` mode — vmnet-bridged, using the physical NIC directly.
 
 `scripts/ssh.sh` branches the same way `up.sh` does:
 
-- **`nat`**: connects to `127.0.0.1:<SSH_PORT_BASE + index>` directly — no
+- **`nat`**: connects to `127.0.0.1:2201` (`HOST_SSH_PORT`) directly — no
   lookup needed.
 - **`bridged`**: reads `ansible_host` for the VM out of the generated
   inventory (`ansible/inventory/hosts.generated.yaml`, written by

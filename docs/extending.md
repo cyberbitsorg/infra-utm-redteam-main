@@ -51,47 +51,23 @@ to the `attacker` role (a systemd unit or an `openvpn@` instance) — not
 included here since VPN targets and credentials are personal, not something
 to bake into a shared repo.
 
-## Growing into a fleet
+## Need more than one machine?
 
-`lab.conf`'s `LAB_VMS` array is a single entry today:
+This repo is deliberately a single box. `lab.conf` describes exactly one VM
+(`VM_NAME`, `VM_CPU`, `VM_RAM`, `VM_DISK_GB`), and the scripts operate on that
+one VM directly — there is no fleet array, no per-entry parser, and no
+index-based MAC/port math. That is the whole point of the simplification: a
+main attack box you rebuild identically, without the multi-machine plumbing.
 
-```bash
-LAB_VMS=(
-  "kali:attacker"
-)
-```
+**If you want several machines, use the sibling `infra-utm-redteam-lab`.** It
+is built for exactly that — a `LAB_VMS` fleet, per-role base images, an
+isolated lab segment, and vulnerable targets to attack. Reaching for it is the
+right move rather than re-growing a fleet here.
 
-It's kept as an array specifically so it can grow. The entry format is
-`"name:role [cpu=N] [ram=MiB] [disk=GB]"` — the resource fields are optional
-and fall back to `LAB_CPU`/`LAB_RAM`/`LAB_DISK_GB`, so a new entry only needs
-to spell out what differs from the defaults:
-
-```bash
-LAB_VMS=(
-  "kali:attacker"
-  "kali2:attacker cpu=4 ram=4096"
-)
-```
-
-A few things to know before doing this:
-
-- Every entry currently maps to the same base image and the same `attacker`
-  role — `role_image()` in `scripts/lib.sh` is hardcoded to the Kali image
-  ("Every VM in this repo is Kali; kept as a function so the fleet can
-  grow."), and `attacker` is the only Ansible role wired into
-  `ansible/playbook.yaml`. A second Kali box running the same role works as
-  shown above. A genuinely different role (a different base image, a
-  different Ansible role) needs `role_image()` and the playbook extended
-  first — follow the pattern in the `infra-utm-redteam-lab` sibling, which
-  already runs a multi-role fleet this way.
-- `data_disk_path()` in `scripts/lib.sh` returns a single fixed path,
-  `persist/data.qcow2`, shared by every VM in `LAB_VMS`. That's correct for
-  today's one-VM build; before running more than one VM at once, key it by VM
-  name (e.g. `persist/<name>-data.qcow2`) so each machine gets its own
-  persistent disk instead of contending for one.
-- In `nat` mode, each additional VM gets the next `SSH_PORT_BASE + index`
-  port automatically; in `bridged` mode, each gets its own DHCP lease with no
-  extra configuration needed.
-- `make ssh <name>` and `make console <name>` already take the short name as
-  an argument, so a bigger fleet doesn't need new tooling for day-to-day use
-  — only `up.sh`'s per-VM loop, which already exists, does the work.
+If you genuinely want a second box from *this* repo, the honest answer is that
+it is a code change, not a config edit. You would reintroduce per-VM
+configuration and give each VM its own identity in `scripts/lib.sh`: the fixed
+`VM_MAC` and `HOST_SSH_PORT` constants and the single `data_disk_path()`
+(`persist/data.qcow2`) each assume one machine, so two VMs would collide on the
+MAC, the host SSH port, and the persistent disk. At that point you are
+rebuilding what the lab sibling already provides — prefer it.

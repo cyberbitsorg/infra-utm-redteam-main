@@ -54,44 +54,33 @@ fi
 "${SCRIPTS}/fetch-images.sh"
 
 mode="$(nic_mode)"
-log "Provisioning ${#LAB_VMS[@]} VM(s) in ${mode} mode"
-rows=""                # lines: short name host port
-idx=0
-for entry in "${LAB_VMS[@]}"; do
-  idx=$((idx + 1))
-  parse_vm_entry "$entry"
-  result="$("${SCRIPTS}/create-vm.sh" "$idx" "$VM_SHORT" "$VM_ROLE" \
-    "$VM_CPU" "$VM_RAM" "$VM_DISK" | tail -1)"
-  read -r name port vmmode <<<"$result"
+log "Provisioning the VM in ${mode} mode"
+result="$("${SCRIPTS}/create-vm.sh" | tail -1)"
+read -r name port vmmode <<<"$result"
 
-  if [[ "$vmmode" == "bridged" ]]; then
-    log "Discovering ${name} LAN IP (qemu-guest-agent)"
-    host=""
-    deadline=$(( $(date +%s) + 180 ))
-    while :; do
-      # First non-loopback IPv4 the guest agent reports.
-      host="$("$UTMCTL" ip-address "$name" 2>/dev/null \
-        | grep -Eo '([0-9]{1,3}\.){3}[0-9]{1,3}' \
-        | grep -v '^127\.' | head -1 || true)"
-      [[ -n "$host" ]] && break
-      [[ $(date +%s) -lt $deadline ]] || die "Timed out getting ${name} LAN IP. Is DHCP available on the bridged network?"
-      sleep 5
-    done
-    port=22
-    ok "${name} at ${host}:22"
-  else
-    host="127.0.0.1"
-  fi
-  rows+="${VM_SHORT} ${name} ${host} ${port}"$'\n'
-done
+if [[ "$vmmode" == "bridged" ]]; then
+  log "Discovering ${name} LAN IP (qemu-guest-agent)"
+  host=""
+  deadline=$(( $(date +%s) + 180 ))
+  while :; do
+    # First non-loopback IPv4 the guest agent reports.
+    host="$("$UTMCTL" ip-address "$name" 2>/dev/null \
+      | grep -Eo '([0-9]{1,3}\.){3}[0-9]{1,3}' \
+      | grep -v '^127\.' | head -1 || true)"
+    [[ -n "$host" ]] && break
+    [[ $(date +%s) -lt $deadline ]] || die "Timed out getting ${name} LAN IP. Is DHCP available on the bridged network?"
+    sleep 5
+  done
+  port=22
+  ok "${name} at ${host}:22"
+else
+  host="127.0.0.1"
+fi
 
-log "Waiting for VMs to accept SSH"
-while read -r short name host port; do
-  [[ -z "$short" ]] && continue
-  "${SCRIPTS}/wait-ssh.sh" "$host" "$port" 420
-done <<<"$rows"
+log "Waiting for the VM to accept SSH"
+"${SCRIPTS}/wait-ssh.sh" "$host" "$port" 420
 
-printf '%s' "$rows" | "${SCRIPTS}/gen-inventory.sh"
+printf '%s %s %s %s\n' "$VM_NAME" "$name" "$host" "$port" | "${SCRIPTS}/gen-inventory.sh"
 
 if [[ "$MODE" == "provision" ]]; then
   ok "Provisioning done. Run 'make configure' to apply Ansible."

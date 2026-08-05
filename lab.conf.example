@@ -60,11 +60,12 @@ PERSIST_MODE="data"
 # Size of the persistent disk at first creation, in GB. Never shrunk.
 DATA_DISK_GB=40
 
-# --- Resource defaults ------------------------------------------------------
-# Per-VM cpu= / ram= / disk= fields in LAB_VMS override these.
-LAB_CPU=4
-LAB_RAM=8192
-LAB_DISK_GB=80
+# --- Virtual machine --------------------------------------------------------
+# The UTM VM is named <LAB_PREFIX>-<VM_NAME>.
+VM_NAME="kali"
+VM_CPU=4
+VM_RAM=8192        # MiB
+VM_DISK_GB=80
 
 # --- Base image (ARM64 / aarch64) -------------------------------------------
 # Kali genericcloud, from the per-release directory (never current/, which 404s
@@ -74,10 +75,3 @@ KALI_VERSION="2026.2"
 KALI_IMG_URL="https://kali.download/cloud-images/kali-${KALI_VERSION}/kali-linux-${KALI_VERSION}-cloud-genericcloud-arm64.tar.xz"
 KALI_SHA_URL="https://kali.download/cloud-images/kali-${KALI_VERSION}/SHA256SUMS"
 KALI_IMG_FILE="kali-genericcloud-arm64.raw"
-
-# --- VM fleet ---------------------------------------------------------------
-# One machine. Entry: "name:role [cpu=N] [ram=MiB] [disk=GB]". The array is
-# kept so the box can grow into a fleet later.
-LAB_VMS=(
-  "kali:attacker"
-)
