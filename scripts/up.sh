@@ -38,7 +38,7 @@ run_ansible() {
       -e "attacker_toolset=${KALI_TOOLSET:-default}" \
       -e "attacker_gui=${ATTACKER_GUI:-xfce}" \
       -e "attacker_clipboard=${CLIPBOARD:-yes}" \
-      -e "persist_mode=${PERSIST_MODE:-data}" \
+      -e "attacker_keep_home=$(keep_home)" \
       -e "attacker_sandbox_name=$(sandbox_name)" \
       -e "@${vars_file}" )
   ok "Configuration complete"

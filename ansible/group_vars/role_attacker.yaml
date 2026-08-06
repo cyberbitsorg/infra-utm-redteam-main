@@ -6,6 +6,11 @@ attacker_toolset: default
 # basename of SANDBOX_DIR, so the Mac and the guest always agree on the name.
 attacker_sandbox_name: Sandbox
 
+# Whether the persistent disk becomes /home (dotfiles, keys and tool state
+# survive a rebuild) or stays scratch space at /data. up.sh passes it from
+# KEEP_HOME.
+attacker_keep_home: true
+
 attacker_packages_curated:
   - nmap
   - netcat-traditional
@@ -33,7 +38,3 @@ attacker_gui: xfce
 attacker_clipboard: "yes"
 attacker_password: redteam
 
-# Persistence layout. up.sh passes -e persist_mode from PERSIST_MODE.
-#   data -> mount the data disk at /data (~/engagements -> /data), clean home
-#   home -> the data disk holds /home
-persist_mode: data

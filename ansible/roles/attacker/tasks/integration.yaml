@@ -1,7 +1,10 @@
 ---
-# Host integration: SPICE clipboard, the live shared folder, and the persistent
-# data disk mounted per persist_mode. No anonymity invariant here, so these are
-# all fine.
+# Host integration: SPICE clipboard, the persistent disk, and the live shared
+# folder. No anonymity invariant here, so these are all fine.
+#
+# Order matters. The persistent disk can become /home, and mounting /home would
+# hide anything already mounted inside it, so the disk is settled first and the
+# shared folder is mounted into the home that is going to stick around.
 
 # --- Lab user identity ------------------------------------------------------
 # cloud-init deliberately creates the user with no_user_group, so no group is
@@ -32,6 +35,165 @@
     enabled: true
     state: started
   when: attacker_clipboard | default('yes') | bool
+
+# --- Persistent disk --------------------------------------------------------
+# The second VirtIO disk (persist/data.qcow2), which survives make destroy.
+# attacker_keep_home decides what it is for:
+#   true  : it becomes /home, so dotfiles, keys, shell history and tool state
+#           all survive a rebuild.
+#   false : it is scratch space at /data with ~/engagements pointing at it, and
+#           every rebuild gives a clean home.
+- name: Identify the data disk (the non-root VirtIO block device)
+  ansible.builtin.shell:
+    cmd: |
+      set -euo pipefail
+      root_src="$(findmnt -no SOURCE / | sed 's/[0-9]*$//; s/p$//')"
+      for d in /dev/vdb /dev/vdc /dev/vda; do
+        [ -b "$d" ] || continue
+        case "$root_src" in *"$d"*) continue;; esac
+        fstype="$(blkid -o value -s TYPE "$d" 2>/dev/null || true)"
+        label="$(blkid -o value -s LABEL "$d" 2>/dev/null || true)"
+        [ "$fstype" = "iso9660" ] && continue
+        [ "$label" = "cidata" ] && continue
+        echo "$d"; exit 0
+      done
+      exit 0
+  args:
+    executable: /bin/bash
+  register: data_dev
+  changed_when: false
+
+- name: Fail clearly if no data disk is present
+  ansible.builtin.fail:
+    msg: >-
+      No second VirtIO disk was found. The persistent disk is created by
+      scripts/create-vm.sh; rebuild with make destroy then make up.
+  when: (data_dev.stdout | trim) | length == 0
+
+- name: Make an ext4 filesystem on the data disk if it has none
+  ansible.builtin.filesystem:
+    fstype: ext4
+    dev: "{{ data_dev.stdout | trim }}"
+    # never force: only formats a disk that has no filesystem yet, so existing
+    # work is never wiped on a reconfigure.
+
+- name: Check whether /home already lives on the persistent disk
+  ansible.builtin.command:
+    cmd: findmnt -no SOURCE /home
+  register: attacker_home_src
+  changed_when: false
+  failed_when: false
+
+# Mounting a bare disk straight onto /home would bury the cloud-init user's home
+# under an empty directory, taking ~/.ssh/authorized_keys with it and locking
+# everything out of the box on the very next connection. So the disk is filled
+# from the current /home first, mounted out of the way, and the copy is only
+# trusted once the lab user's .ssh is actually on it.
+- name: Seed the persistent disk from the current /home
+  ansible.builtin.shell:
+    cmd: |
+      set -euo pipefail
+      mkdir -p /mnt/newhome
+      mount "{{ data_dev.stdout | trim }}" /mnt/newhome
+      trap 'umount /mnt/newhome' EXIT
+      if [ ! -d "/mnt/newhome/{{ ansible_user }}" ]; then
+        # --one-file-system is load-bearing: the shared folder is mounted inside
+        # /home, and a plain recursive copy would follow it and try to pull the
+        # Mac's entire disk onto a disk image a fraction of the size.
+        tar -C /home --one-file-system -cf - . | tar -C /mnt/newhome -xpf -
+        echo seeded
+      fi
+      if [ ! -d "/mnt/newhome/{{ ansible_user }}/.ssh" ]; then
+        echo "refusing to mount /home: no .ssh for {{ ansible_user }} on the disk" >&2
+        exit 1
+      fi
+  args:
+    executable: /bin/bash
+  register: attacker_home_seed
+  changed_when: "'seeded' in attacker_home_seed.stdout"
+  when:
+    - attacker_keep_home | bool
+    - (attacker_home_src.stdout | trim) != (data_dev.stdout | trim)
+
+- name: Drop the scratch /data mount when the home is kept instead
+  ansible.posix.mount:
+    path: /data
+    state: absent
+  when: attacker_keep_home | bool
+
+# A new /home would hide the shared folder mounted inside the old one, leaving
+# an orphaned mount underneath that nothing can reach. Take it down first; the
+# shared-folder section below rebuilds it on the home that is going to stay.
+- name: Find shared-folder mounts that a new /home would hide
+  ansible.builtin.command:
+    cmd: findmnt -rno TARGET --source /mnt/sandbox
+  register: attacker_shares_before_home
+  changed_when: false
+  failed_when: false
+  when:
+    - attacker_keep_home | bool
+    - (attacker_home_src.stdout | trim) != (data_dev.stdout | trim)
+
+- name: Unmount them before /home changes underneath
+  ansible.posix.mount:
+    path: "{{ item }}"
+    state: unmounted
+  loop: "{{ attacker_shares_before_home.stdout_lines | default([]) }}"
+
+- name: Mount the persistent disk at /home
+  ansible.posix.mount:
+    path: /home
+    src: "{{ data_dev.stdout | trim }}"
+    fstype: ext4
+    opts: "defaults,nofail"
+    state: mounted
+  when: attacker_keep_home | bool
+
+- name: Drop the ~/engagements link when the home is kept instead
+  ansible.builtin.file:
+    path: "/home/{{ ansible_user }}/engagements"
+    state: absent
+  when: attacker_keep_home | bool
+
+# Going the other way means pulling /home out from under every running process
+# and the live SSH session, which is not something to do mid-play.
+- name: Refuse to demote a persistent /home while it is in use
+  ansible.builtin.fail:
+    msg: >-
+      KEEP_HOME is no, but /home is currently the persistent disk. Switching
+      back cannot be done safely on a running box: rebuild with make destroy
+      then make up, which gives a clean home and keeps the disk as /data.
+  when:
+    - not (attacker_keep_home | bool)
+    - (attacker_home_src.stdout | trim) == (data_dev.stdout | trim)
+
+- name: Mount the persistent disk at /data
+  ansible.posix.mount:
+    path: /data
+    src: "{{ data_dev.stdout | trim }}"
+    fstype: ext4
+    opts: "defaults,nofail"
+    state: mounted
+  when: not (attacker_keep_home | bool)
+
+- name: Own /data for the user
+  ansible.builtin.file:
+    path: /data
+    state: directory
+    owner: "{{ ansible_user }}"
+    group: "{{ attacker_user_group }}"
+    mode: "0755"
+  when: not (attacker_keep_home | bool)
+
+- name: Link ~/engagements to /data
+  ansible.builtin.file:
+    src: /data
+    dest: "/home/{{ ansible_user }}/engagements"
+    state: link
+    force: true
+    owner: "{{ ansible_user }}"
+    group: "{{ attacker_user_group }}"
+  when: not (attacker_keep_home | bool)
 
 # --- The shared folder ------------------------------------------------------
 # The host folder (SANDBOX_DIR) appears in the lab user's home under the same
@@ -157,89 +319,3 @@
     - udevadm trigger --subsystem-match=block --action=change
   when: attacker_cidata_rule.changed
   changed_when: true
-
-# --- Persistent data disk ---------------------------------------------------
-# The second VirtIO disk (persist/data.qcow2, imported by UTM). Format on first
-# use, then mount at /data (persist_mode=data) or /home (persist_mode=home).
-- name: Identify the data disk (the non-root VirtIO block device)
-  ansible.builtin.shell:
-    cmd: |
-      set -euo pipefail
-      root_src="$(findmnt -no SOURCE / | sed 's/[0-9]*$//; s/p$//')"
-      for d in /dev/vdb /dev/vdc /dev/vda; do
-        [ -b "$d" ] || continue
-        case "$root_src" in *"$d"*) continue;; esac
-        fstype="$(blkid -o value -s TYPE "$d" 2>/dev/null || true)"
-        label="$(blkid -o value -s LABEL "$d" 2>/dev/null || true)"
-        [ "$fstype" = "iso9660" ] && continue
-        [ "$label" = "cidata" ] && continue
-        echo "$d"; exit 0
-      done
-      exit 0
-  args:
-    executable: /bin/bash
-  register: data_dev
-  changed_when: false
-
-- name: Fail clearly if no data disk is present
-  ansible.builtin.fail:
-    msg: >-
-      persist_mode={{ persist_mode }} but no second VirtIO disk was found.
-      The data disk is created by scripts/create-vm.sh; rebuild with make destroy
-      then make up, or confirm the Task 7 data-disk validation.
-  when: (data_dev.stdout | trim) | length == 0
-
-- name: Make an ext4 filesystem on the data disk if it has none
-  ansible.builtin.filesystem:
-    fstype: ext4
-    dev: "{{ data_dev.stdout | trim }}"
-    # never force: only formats a disk that has no filesystem yet, so existing
-    # work is never wiped on a reconfigure.
-  when: (data_dev.stdout | trim) | length > 0
-
-- name: Mount the data disk at /data
-  ansible.posix.mount:
-    path: /data
-    src: "{{ data_dev.stdout | trim }}"
-    fstype: ext4
-    opts: "defaults,nofail"
-    state: mounted
-  when:
-    - (data_dev.stdout | trim) | length > 0
-    - persist_mode | default('data') == 'data'
-
-- name: Link ~/engagements to /data
-  ansible.builtin.file:
-    src: /data
-    dest: "/home/{{ ansible_user }}/engagements"
-    state: link
-    force: true
-    owner: "{{ ansible_user }}"
-    group: "{{ attacker_user_group }}"
-  when: persist_mode | default('data') == 'data'
-
-- name: Own /data for the user
-  ansible.builtin.file:
-    path: /data
-    state: directory
-    owner: "{{ ansible_user }}"
-    group: "{{ attacker_user_group }}"
-    mode: "0755"
-  when:
-    - (data_dev.stdout | trim) | length > 0
-    - persist_mode | default('data') == 'data'
-
-- name: Mount the data disk at /home (persist_mode=home)
-  ansible.posix.mount:
-    path: /home
-    src: "{{ data_dev.stdout | trim }}"
-    fstype: ext4
-    opts: "defaults,nofail"
-    state: mounted
-  when:
-    - (data_dev.stdout | trim) | length > 0
-    - persist_mode | default('data') == 'home'
-  # NOTE: on a fresh data disk this mounts an empty /home OVER the cloud-init
-  # user's home. The Task 7 validation confirms the first-boot ordering; if the
-  # login user's home must be seeded, copy /etc/skel after mount. Documented in
-  # the README's Host integration section.

@@ -42,6 +42,8 @@ case "$(sandbox_name)" in
   *[[:space:]]*|"") die "SANDBOX_DIR must end in a folder name without spaces (got: $(sandbox_dir))" ;;
 esac
 
+keep_home >/dev/null   # dies on an invalid value
+
 log "Ensuring persist/ and the share folder exist"
 mkdir -p "$PERSIST_DIR" "$(sandbox_dir)"
 ok "persist/ and $(sandbox_dir) present (mounts as ~/$(sandbox_name) in the guest)"

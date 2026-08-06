@@ -91,6 +91,17 @@ data_disk_path() { echo "${PERSIST_DIR}/data.qcow2"; }
 sandbox_dir() { echo "${SANDBOX_DIR:-${HOME}/Sandbox}"; }
 sandbox_name() { basename "$(sandbox_dir)"; }
 
+# Whether the persistent disk becomes /home or stays scratch at /data. Emitted
+# as a bool for Ansible, and validated here so a typo fails preflight instead of
+# silently picking a layout.
+keep_home() {
+  case "${KEEP_HOME:-yes}" in
+    yes|true|1) echo true ;;
+    no|false|0) echo false ;;
+    *) die "KEEP_HOME must be yes or no (got: ${KEEP_HOME})" ;;
+  esac
+}
+
 # --- Platform guard ---------------------------------------------------------
 require_macos() {
   [[ "$(uname -s)" == "Darwin" ]] || die "This lab provisions UTM VMs and must run on macOS."

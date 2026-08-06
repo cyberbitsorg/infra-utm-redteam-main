@@ -82,7 +82,8 @@ to day:
 | `KALI_TOOLSET` | `curated` \| `headless` \| `default` \| `large` | `default` | Which Kali metapackage to install (`kali-linux-default` is the standard installer set) |
 | `ATTACKER_GUI` | `xfce` \| `none` | `xfce` | Whether the XFCE desktop + LightDM greeter is installed |
 | `CLIPBOARD` | `yes` \| `no` | `yes` | SPICE clipboard sharing (`spice-vdagent`) between macOS and the guest desktop |
-| `PERSIST_MODE` | `data` \| `home` | `data` | `data`: persistent disk mounted at `/data` (`~/engagements` symlinked to it), home is clean on every rebuild. `home`: the persistent disk is `/home`, so dotfiles/keys/tool state survive rebuilds too |
+| `KEEP_HOME` | `yes` \| `no` | `yes` | `yes`: the persistent disk is `/home`, so dotfiles, keys and tool state survive a rebuild. `no`: the disk is scratch at `/data` (`~/engagements` points at it) and every rebuild gives a clean home |
+| `SANDBOX_DIR` | path | `~/Sandbox` | Host folder shared into the guest, mounted in the lab user's home under the same name |
 | `DATA_DISK_GB` | integer | `40` | Size of the persistent disk at first creation; never shrunk |
 | `VM_NAME` | string | `kali` | Short VM name; the UTM VM is `<LAB_PREFIX>-<VM_NAME>` |
 | `VM_CPU` / `VM_RAM` / `VM_DISK_GB` | integer | `4` / `8192` / `80` | VM resources (cores / MiB / GB) |
@@ -175,10 +176,24 @@ the Mac is never touched. Both mounts are in the guest's `fstab` with `nofail`,
 so they come back on every boot and an unconfigured share still leaves an empty
 `~/Sandbox` rather than a broken build.
 
+### Persistence
+
 The persistent disk (`persist/data.qcow2`, `DATA_DISK_GB`) is formatted ext4 on
-first use only and mounted per `PERSIST_MODE`. Under `home`, note that a
-brand-new empty disk mounted at `/home` shadows the cloud-init user's home:
-copy `/etc/skel` in first, or accept an empty home on the first boot.
+first use only and survives `make destroy`. `KEEP_HOME` decides what it is for.
+
+With `KEEP_HOME=yes` the disk becomes `/home`, so dotfiles, SSH keys, shell
+history and tool state all survive a rebuild. Before mounting it the first
+time, provisioning copies the current `/home` onto the disk and refuses to
+mount unless the lab user's `.ssh` is on it. Without that, a bare disk would
+bury `authorized_keys` and lock you out on the next connection.
+
+With `KEEP_HOME=no` the disk is scratch space at `/data`, `~/engagements`
+points at it, and every rebuild gives you a clean home.
+
+Going from `no` to `yes` happens on the next `make configure`, carrying your
+current home across. The other direction cannot be done on a running box, since
+it means pulling `/home` out from under every running process, so provisioning
+stops with an explanation instead: rebuild with `make destroy` then `make up`.
 
 ## Directory layout
 

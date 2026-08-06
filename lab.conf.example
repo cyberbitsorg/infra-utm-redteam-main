@@ -52,11 +52,15 @@ KALI_TOOLSET="default"
 # --- Persistence ------------------------------------------------------------
 # A second disk in persist/ that survives 'make destroy' and is re-attached on
 # the next 'make up', so a rebuild gives a fresh OS with your work intact.
-#   data : mounted at /data, with ~/engagements -> /data. Home and dotfiles
-#          are clean on every rebuild.
-#   home : the disk holds /home, so dotfiles, keys and tool state survive a
-#          rebuild too (no clean home on rebuild).
-PERSIST_MODE="data"
+# KEEP_HOME decides what that disk is for:
+#   yes : the disk holds /home, so dotfiles, SSH keys, shell history and tool
+#         state all survive a rebuild. You never get a clean home, so a broken
+#         config sticks around just as well as a good one.
+#   no  : the disk is scratch space at /data, with ~/engagements pointing at
+#         it, and every rebuild gives you a clean home.
+# Switching from yes to no cannot be done on a running box (it would pull /home
+# out from under everything); rebuild with 'make destroy' then 'make up'.
+KEEP_HOME="yes"
 
 # Size of the persistent disk at first creation, in GB. Never shrunk.
 DATA_DISK_GB=40
