@@ -39,6 +39,47 @@
 # what the folder is called on either side, so src below is the tag, not a path.
 # The mount only works once the folder is selected in UTM's VM settings, so this
 # is nofail: an unconfigured share leaves an empty ~/Sandbox, not a failed run.
+# UTM shares with security_model=mapped-xattr: the guest's ownership lives in
+# user.virtfs.* xattrs on the host file, and anything created on the Mac has no
+# such xattr, so it falls back to the raw macOS uid (501) against the guest's
+# 1000. Everything from the Mac would be read-only. So the 9p share is mounted
+# privately at /mnt/sandbox and bindfs re-presents it at ~/Sandbox with every
+# file forced to the lab user, which makes the whole tree writable no matter
+# which side created it, and never touches ownership on the Mac.
+- name: Install bindfs for the Sandbox ownership mapping
+  ansible.builtin.apt:
+    name: bindfs
+    state: present
+    update_cache: true
+    cache_valid_time: 3600
+
+# Both mount points are created only while nothing is mounted on them. Creating
+# them unconditionally would chown and chmod whatever is mounted there instead,
+# which on /mnt/sandbox means rewriting the ownership xattrs of the share root
+# on the Mac on every single configure run.
+- name: Check what is mounted at the two Sandbox paths
+  ansible.builtin.command:
+    cmd: "findmnt -no FSTYPE {{ item }}"
+  loop:
+    - /mnt/sandbox
+    - "/home/{{ ansible_user }}/Sandbox"
+  register: attacker_sandbox_mounts
+  changed_when: false
+  failed_when: false
+
+- name: Set the private 9p mount point aside
+  ansible.builtin.set_fact:
+    attacker_sandbox_fstype: "{{ attacker_sandbox_mounts.results[1].stdout | trim }}"
+
+- name: Ensure the private 9p mount point exists
+  ansible.builtin.file:
+    path: /mnt/sandbox
+    state: directory
+    owner: root
+    group: root
+    mode: "0700"
+  when: attacker_sandbox_mounts.results[0].stdout | trim == ''
+
 - name: Ensure the Sandbox mount point exists
   ansible.builtin.file:
     path: "/home/{{ ansible_user }}/Sandbox"
@@ -46,10 +87,17 @@
     owner: "{{ ansible_user }}"
     group: "{{ attacker_user_group }}"
     mode: "0755"
+  when: attacker_sandbox_fstype == ''
 
-- name: Mount the UTM Sandbox share over 9p (if present)
+- name: Unmount a legacy direct 9p mount at ~/Sandbox
   ansible.posix.mount:
     path: "/home/{{ ansible_user }}/Sandbox"
+    state: unmounted
+  when: attacker_sandbox_fstype == '9p'
+
+- name: Mount the UTM share privately over 9p (if present)
+  ansible.posix.mount:
+    path: /mnt/sandbox
     src: share
     fstype: 9p
     opts: "trans=virtio,version=9p2000.L,rw,_netdev,nofail,msize=104857600"
@@ -57,20 +105,15 @@
   register: share_mount
   failed_when: false
 
-# UTM shares with security_model=mapped-xattr: the guest's ownership lives in
-# user.virtfs.* xattrs on the host file, and anything created on the Mac has no
-# such xattr, so it falls back to the raw host uid (501 on macOS) against the
-# guest's 1000. That leaves the share root owned by a stranger and read-only, so
-# the guest cannot create anything in it. Chowning the mount root writes the
-# mapping and costs nothing on the host, which keeps its own ownership. Files
-# and folders made on the Mac stay read-only in the guest; chown them here too
-# if you need to write to them.
-- name: Take ownership of the mounted Sandbox root
-  ansible.builtin.file:
+- name: Re-present the share as the lab user's own at ~/Sandbox
+  ansible.posix.mount:
     path: "/home/{{ ansible_user }}/Sandbox"
-    state: directory
-    owner: "{{ ansible_user }}"
-    group: "{{ attacker_user_group }}"
+    src: /mnt/sandbox
+    fstype: fuse.bindfs
+    # One line on purpose: a folded scalar would put spaces in the option list.
+    opts: "force-user={{ ansible_user }},force-group={{ attacker_user_group }},create-for-user={{ ansible_user }},create-for-group={{ attacker_user_group }},chown-ignore,chgrp-ignore,nofail,x-systemd.requires-mounts-for=/mnt/sandbox"
+    state: mounted
+  failed_when: false
 
 # --- Cloud-init seed disk ---------------------------------------------------
 # The NoCloud seed (label "cidata") stays attached for the VM's whole life, so

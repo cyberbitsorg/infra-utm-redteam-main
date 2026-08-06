@@ -158,13 +158,18 @@ mounts `src: share`. That mount is `nofail`: skip the steps above and you get an
 empty `~/Sandbox`, not a broken build.
 
 On write access: UTM shares with `security_model=mapped-xattr`, so the guest's
-idea of ownership is stored in `user.virtfs.*` xattrs on the host file. Anything
+idea of ownership lives in `user.virtfs.*` xattrs on the host file. Anything
 created on the Mac carries no such xattr and falls back to the raw macOS uid,
-which is a stranger to the guest. `make configure` chowns the share root so the
-guest can create files and folders there. Files and folders you made on the Mac
-stay read-only in the guest; `sudo chown -R $USER:users ~/Sandbox/<dir>` inside
-the VM fixes any you want to write to, and only touches xattrs, never the Mac's
-own ownership.
+which is a stranger to the guest, so a plain 9p mount would be read-only for
+everything you put there from macOS.
+
+Provisioning avoids that entirely. The 9p share is mounted privately at
+`/mnt/sandbox` (root only), and `bindfs` re-presents it at `~/Sandbox` with
+every file forced to the lab user. The whole tree is writable from the guest no
+matter which side created it, with nothing to chown by hand, and ownership on
+the Mac is never touched. Both mounts are in the guest's `fstab` with `nofail`,
+so they come back on every boot and an unconfigured share still leaves an empty
+`~/Sandbox` rather than a broken build.
 
 The persistent disk (`persist/data.qcow2`, `DATA_DISK_GB`) is formatted ext4 on
 first use only and mounted per `PERSIST_MODE`. Under `home`, note that a
