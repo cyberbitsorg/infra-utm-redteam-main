@@ -34,9 +34,11 @@ ATTACKER_GUI="xfce"
 # Share the clipboard between macOS and the desktop (SPICE): 'yes' or 'no'.
 CLIPBOARD="yes"
 
-# Host folder shared live into the guest, where it is mounted as ~/Sandbox.
-# Kept outside the repo so engagement files never land in a git working tree.
-# The folder must be pointed at once in UTM's VM settings; see the README.
+# Host folder shared live into the guest, where it is mounted under the same
+# name in the lab user's home (~/Sandbox by default). Rename it here and both
+# sides follow. Kept outside the repo so engagement files never land in a git
+# working tree. The folder must be pointed at once in UTM's VM settings; see
+# the README. The folder name cannot contain spaces (it becomes an fstab entry).
 SANDBOX_DIR="${HOME}/Sandbox"
 
 # --- Toolset ----------------------------------------------------------------

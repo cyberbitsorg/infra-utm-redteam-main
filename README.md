@@ -124,10 +124,14 @@ UTM's SPICE display gives ordinary copy/paste with macOS. Verify with
 
 ### Sandbox: the shared folder
 
-`SANDBOX_DIR` on the Mac (`~/Sandbox` by default) appears in the guest as
-`~/Sandbox`. It lives outside the repo, so engagement files never sit in a git
-working tree, and it survives `make destroy` untouched because it is just a
-folder on the Mac. Use it for dotfiles, `.ovpn` configs and loot.
+`SANDBOX_DIR` on the Mac (`~/Sandbox` by default) appears in the guest home
+under the same name. Point it somewhere else in `lab.conf` and both sides
+follow, since the guest folder is the basename of that path; a rename also
+clears the old mount and `fstab` line on the next `make configure`. The name
+cannot contain spaces, which `make preflight` rejects, because it becomes an
+`fstab` entry. The folder lives outside the repo, so engagement files never sit
+in a git working tree, and it survives `make destroy` untouched because it is
+just a folder on the Mac. Use it for dotfiles, `.ovpn` configs and loot.
 
 Linking it takes one manual step per VM, and it cannot be automated: UTM's QEMU
 backend accepts a share path only from a file picker, never over AppleScript

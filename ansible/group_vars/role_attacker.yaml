@@ -2,6 +2,10 @@
 # Toolset selection. up.sh passes -e attacker_toolset from KALI_TOOLSET.
 attacker_toolset: default
 
+# Name of the shared folder in the lab user's home. up.sh passes it from the
+# basename of SANDBOX_DIR, so the Mac and the guest always agree on the name.
+attacker_sandbox_name: Sandbox
+
 attacker_packages_curated:
   - nmap
   - netcat-traditional

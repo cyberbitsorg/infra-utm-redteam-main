@@ -36,9 +36,15 @@ log "Checking NET_MODE"
 mode="$(nic_mode)"           # dies on an invalid value
 ok "Network mode: ${mode}"
 
-log "Ensuring persist/ and the Sandbox folder exist"
+# The share name becomes a mount point in the guest's fstab, where whitespace
+# would need octal escaping and silently breaks the mount instead.
+case "$(sandbox_name)" in
+  *[[:space:]]*|"") die "SANDBOX_DIR must end in a folder name without spaces (got: $(sandbox_dir))" ;;
+esac
+
+log "Ensuring persist/ and the share folder exist"
 mkdir -p "$PERSIST_DIR" "$(sandbox_dir)"
-ok "persist/ and $(sandbox_dir) present"
+ok "persist/ and $(sandbox_dir) present (mounts as ~/$(sandbox_name) in the guest)"
 
 log "Checking SSH key: ${LAB_SSH_KEY}"
 if [[ -f "$LAB_SSH_KEY" ]]; then

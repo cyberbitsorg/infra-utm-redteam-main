@@ -33,20 +33,21 @@
     state: started
   when: attacker_clipboard | default('yes') | bool
 
-# --- Sandbox (shared folder) ------------------------------------------------
-# The host folder (SANDBOX_DIR, ~/Sandbox by default) appears here as ~/Sandbox.
-# UTM serves it over VirtFS, whose 9p mount tag is always "share" regardless of
-# what the folder is called on either side, so src below is the tag, not a path.
-# The mount only works once the folder is selected in UTM's VM settings, so this
-# is nofail: an unconfigured share leaves an empty ~/Sandbox, not a failed run.
+# --- The shared folder ------------------------------------------------------
+# The host folder (SANDBOX_DIR) appears in the lab user's home under the same
+# name, which up.sh passes as attacker_sandbox_name. UTM serves it over VirtFS,
+# whose 9p mount tag is always "share" no matter what either side calls the
+# folder, so src below is that tag and not a path.
+#
 # UTM shares with security_model=mapped-xattr: the guest's ownership lives in
 # user.virtfs.* xattrs on the host file, and anything created on the Mac has no
 # such xattr, so it falls back to the raw macOS uid (501) against the guest's
-# 1000. Everything from the Mac would be read-only. So the 9p share is mounted
-# privately at /mnt/sandbox and bindfs re-presents it at ~/Sandbox with every
-# file forced to the lab user, which makes the whole tree writable no matter
-# which side created it, and never touches ownership on the Mac.
-- name: Install bindfs for the Sandbox ownership mapping
+# 1000, leaving it read-only. So the share is mounted privately at /mnt/sandbox
+# and bindfs re-presents it in the home directory with every file forced to the
+# lab user. That makes the whole tree writable whichever side created a file,
+# and never touches ownership on the Mac. Both mounts are nofail: a share that
+# was never pointed at a folder in UTM leaves an empty directory, not a failure.
+- name: Install bindfs for the share ownership mapping
   ansible.builtin.apt:
     name: bindfs
     state: present
@@ -57,12 +58,12 @@
 # them unconditionally would chown and chmod whatever is mounted there instead,
 # which on /mnt/sandbox means rewriting the ownership xattrs of the share root
 # on the Mac on every single configure run.
-- name: Check what is mounted at the two Sandbox paths
+- name: Check what is mounted at the two share paths
   ansible.builtin.command:
     cmd: "findmnt -no FSTYPE {{ item }}"
   loop:
     - /mnt/sandbox
-    - "/home/{{ ansible_user }}/Sandbox"
+    - "/home/{{ ansible_user }}/{{ attacker_sandbox_name }}"
   register: attacker_sandbox_mounts
   changed_when: false
   failed_when: false
@@ -80,18 +81,18 @@
     mode: "0700"
   when: attacker_sandbox_mounts.results[0].stdout | trim == ''
 
-- name: Ensure the Sandbox mount point exists
+- name: Ensure the share mount point exists
   ansible.builtin.file:
-    path: "/home/{{ ansible_user }}/Sandbox"
+    path: "/home/{{ ansible_user }}/{{ attacker_sandbox_name }}"
     state: directory
     owner: "{{ ansible_user }}"
     group: "{{ attacker_user_group }}"
     mode: "0755"
   when: attacker_sandbox_fstype == ''
 
-- name: Unmount a legacy direct 9p mount at ~/Sandbox
+- name: Unmount a legacy direct 9p mount in the home directory
   ansible.posix.mount:
-    path: "/home/{{ ansible_user }}/Sandbox"
+    path: "/home/{{ ansible_user }}/{{ attacker_sandbox_name }}"
     state: unmounted
   when: attacker_sandbox_fstype == '9p'
 
@@ -105,15 +106,34 @@
   register: share_mount
   failed_when: false
 
-- name: Re-present the share as the lab user's own at ~/Sandbox
+- name: Re-present the share through bindfs as the lab user's own
   ansible.posix.mount:
-    path: "/home/{{ ansible_user }}/Sandbox"
+    path: "/home/{{ ansible_user }}/{{ attacker_sandbox_name }}"
     src: /mnt/sandbox
     fstype: fuse.bindfs
     # One line on purpose: a folded scalar would put spaces in the option list.
     opts: "force-user={{ ansible_user }},force-group={{ attacker_user_group }},create-for-user={{ ansible_user }},create-for-group={{ attacker_user_group }},chown-ignore,chgrp-ignore,nofail,x-systemd.requires-mounts-for=/mnt/sandbox"
     state: mounted
   failed_when: false
+
+# Renaming SANDBOX_DIR moves the share to a new name in the home directory, and
+# the mount and fstab line under the old name would otherwise sit there forever
+# pointing at the same share. Anything bound to /mnt/sandbox that is not the
+# current name is such a leftover.
+- name: Find share mounts left behind by a rename
+  ansible.builtin.command:
+    cmd: findmnt -rno TARGET --source /mnt/sandbox
+  register: attacker_stale_shares
+  changed_when: false
+  failed_when: false
+
+- name: Remove share mounts left behind by a rename
+  ansible.posix.mount:
+    path: "{{ item }}"
+    state: absent
+  loop: >-
+    {{ attacker_stale_shares.stdout_lines | default([])
+       | difference(['/home/' ~ ansible_user ~ '/' ~ attacker_sandbox_name]) }}
 
 # --- Cloud-init seed disk ---------------------------------------------------
 # The NoCloud seed (label "cidata") stays attached for the VM's whole life, so

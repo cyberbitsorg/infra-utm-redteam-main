@@ -84,9 +84,12 @@ HOST_SSH_PORT=2400
 # Persistent data disk kept OUTSIDE the disposable OS lifecycle.
 data_disk_path() { echo "${PERSIST_DIR}/data.qcow2"; }
 
-# Host-side folder shared live into the guest, where it appears as ~/Sandbox.
-# It lives outside the repo so engagement files never sit in a git working tree.
+# Host-side folder shared live into the guest, where it appears under the same
+# name in the lab user's home. It lives outside the repo so engagement files
+# never sit in a git working tree. One knob sets both sides, so the folder
+# cannot end up called one thing on the Mac and another in the VM.
 sandbox_dir() { echo "${SANDBOX_DIR:-${HOME}/Sandbox}"; }
+sandbox_name() { basename "$(sandbox_dir)"; }
 
 # --- Platform guard ---------------------------------------------------------
 require_macos() {

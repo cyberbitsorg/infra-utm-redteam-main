@@ -39,6 +39,7 @@ run_ansible() {
       -e "attacker_gui=${ATTACKER_GUI:-xfce}" \
       -e "attacker_clipboard=${CLIPBOARD:-yes}" \
       -e "persist_mode=${PERSIST_MODE:-data}" \
+      -e "attacker_sandbox_name=$(sandbox_name)" \
       -e "@${vars_file}" )
   ok "Configuration complete"
 }
