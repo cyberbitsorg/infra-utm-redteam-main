@@ -39,7 +39,7 @@ CLIPBOARD="yes"
 # sides follow. Kept outside the repo so engagement files never land in a git
 # working tree. The folder must be pointed at once in UTM's VM settings; see
 # the README. The folder name cannot contain spaces (it becomes an fstab entry).
-SANDBOX_DIR="${HOME}/Sandbox"
+SHARED_DIR="${HOME}/Sandbox"
 
 # --- Toolset ----------------------------------------------------------------
 # Which Kali toolset to install. Bigger = slower first 'make up'.

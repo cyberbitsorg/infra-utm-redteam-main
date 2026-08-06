@@ -88,8 +88,8 @@ data_disk_path() { echo "${PERSIST_DIR}/data.qcow2"; }
 # name in the lab user's home. It lives outside the repo so engagement files
 # never sit in a git working tree. One knob sets both sides, so the folder
 # cannot end up called one thing on the Mac and another in the VM.
-sandbox_dir() { echo "${SANDBOX_DIR:-${HOME}/Sandbox}"; }
-sandbox_name() { basename "$(sandbox_dir)"; }
+shared_dir() { echo "${SHARED_DIR:-${HOME}/Sandbox}"; }
+shared_name() { basename "$(shared_dir)"; }
 
 # Whether the persistent disk becomes /home or stays scratch at /data. Emitted
 # as a bool for Ansible, and validated here so a typo fails preflight instead of

@@ -83,7 +83,7 @@ to day:
 | `ATTACKER_GUI` | `xfce` \| `none` | `xfce` | Whether the XFCE desktop + LightDM greeter is installed |
 | `CLIPBOARD` | `yes` \| `no` | `yes` | SPICE clipboard sharing (`spice-vdagent`) between macOS and the guest desktop |
 | `KEEP_HOME` | `yes` \| `no` | `yes` | `yes`: the persistent disk is `/home`, so dotfiles, keys and tool state survive a rebuild. `no`: the disk is scratch at `/data` (`~/engagements` points at it) and every rebuild gives a clean home |
-| `SANDBOX_DIR` | path | `~/Sandbox` | Host folder shared into the guest, mounted in the lab user's home under the same name |
+| `SHARED_DIR` | path | `~/Sandbox` | Host folder shared into the guest, mounted in the lab user's home under the same name |
 | `DATA_DISK_GB` | integer | `40` | Size of the persistent disk at first creation; never shrunk |
 | `VM_NAME` | string | `kali` | Short VM name; the UTM VM is `<LAB_PREFIX>-<VM_NAME>` |
 | `VM_CPU` / `VM_RAM` / `VM_DISK_GB` | integer | `4` / `8192` / `80` | VM resources (cores / MiB / GB) |
@@ -125,7 +125,7 @@ UTM's SPICE display gives ordinary copy/paste with macOS. Verify with
 
 ### Sandbox: the shared folder
 
-`SANDBOX_DIR` on the Mac (`~/Sandbox` by default) appears in the guest home
+`SHARED_DIR` on the Mac (`~/Sandbox` by default) appears in the guest home
 under the same name. Point it somewhere else in `lab.conf` and both sides
 follow, since the guest folder is the basename of that path; a rename also
 clears the old mount and `fstab` line on the next `make configure`. The name
@@ -169,7 +169,7 @@ which is a stranger to the guest, so a plain 9p mount would be read-only for
 everything you put there from macOS.
 
 Provisioning avoids that entirely. The 9p share is mounted privately at
-`/mnt/sandbox` (root only), and `bindfs` re-presents it at `~/Sandbox` with
+`/mnt/shared` (root only), and `bindfs` re-presents it at `~/Sandbox` with
 every file forced to the lab user. The whole tree is writable from the guest no
 matter which side created it, with nothing to chown by hand, and ownership on
 the Mac is never touched. Both mounts are in the guest's `fstab` with `nofail`,
@@ -201,7 +201,7 @@ stops with an explanation instead: rebuild with `make destroy` then `make up`.
 |---|---|---|
 | `images/` | The verified ARM64 Kali base image + checksums | Fetched once; kept by `make destroy` |
 | `persist/` | The persistent data disk (`data.qcow2`) | Kept by `make destroy`; re-attached on the next `make up` |
-| `SANDBOX_DIR` (`~/Sandbox`, outside the repo) | Host-side shared folder, live-mounted into the guest at `~/Sandbox` | User-managed; not touched by the tooling |
+| `SHARED_DIR` (`~/Sandbox`, outside the repo) | Host-side shared folder, live-mounted into the guest at `~/Sandbox` | User-managed; not touched by the tooling |
 | `generated/` | Per-build OS staging disk + cloud-init seed ISO | Rebuilt every `make up`; wiped by `make destroy` |
 
 Also gitignored: `lab.conf` and `ansible/inventory/hosts.generated.yaml`.

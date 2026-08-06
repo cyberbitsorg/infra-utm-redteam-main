@@ -39,7 +39,7 @@ run_ansible() {
       -e "attacker_gui=${ATTACKER_GUI:-xfce}" \
       -e "attacker_clipboard=${CLIPBOARD:-yes}" \
       -e "attacker_keep_home=$(keep_home)" \
-      -e "attacker_sandbox_name=$(sandbox_name)" \
+      -e "attacker_shared_name=$(shared_name)" \
       -e "@${vars_file}" )
   ok "Configuration complete"
 }

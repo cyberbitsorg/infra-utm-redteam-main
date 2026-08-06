@@ -3,8 +3,8 @@
 attacker_toolset: default
 
 # Name of the shared folder in the lab user's home. up.sh passes it from the
-# basename of SANDBOX_DIR, so the Mac and the guest always agree on the name.
-attacker_sandbox_name: Sandbox
+# basename of SHARED_DIR, so the Mac and the guest always agree on the name.
+attacker_shared_name: Sandbox
 
 # Whether the persistent disk becomes /home (dotfiles, keys and tool state
 # survive a rebuild) or stays scratch space at /data. up.sh passes it from
