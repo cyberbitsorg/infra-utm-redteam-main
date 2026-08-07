@@ -134,7 +134,9 @@
       echo changed
     executable: /bin/bash
   register: desktop_compositing
-  changed_when: "'changed' in desktop_compositing.stdout"
+  # Exact match, not "in": "unchanged" contains "changed" as a substring, so a
+  # membership test here reports every single run as a change.
+  changed_when: desktop_compositing.stdout | trim == 'changed'
 
 # A resolution change only reaches Xorg when Xorg restarts, and restarting
 # LightDM throws away whatever is open. So do it only when nobody is logged in
