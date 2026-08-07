@@ -31,6 +31,28 @@ ATTACKER_PASSWORD="redteam"
 # Graphical desktop rendered in UTM's window: 'xfce' (default) or 'none'.
 ATTACKER_GUI="xfce"
 
+# Desktop resolution. UTM's GPU-accelerated displays produce no picture at all
+# on this setup (see VM_DISPLAY in scripts/lib.sh), so the guest renders the
+# whole desktop on the CPU and the pixel count is what decides whether it stays
+# usable.
+#   <width>x<height> : pin the guest to this resolution and let UTM scale the
+#                      picture to whatever size its window has. Resizing the
+#                      window then costs the guest nothing. Pick a mode the
+#                      virtual monitor offers (1920x1080, 1680x1050, 1600x1200,
+#                      1440x900, 1280x1024, 1024x768); an unknown one is
+#                      ignored and the monitor's own preferred mode wins.
+#   dynamic          : let the guest desktop follow the UTM window instead.
+#                      Every resize step then becomes a mode change at whatever
+#                      size the window has, and at Retina sizes that is what
+#                      locks the display up for minutes on end. Only worth it
+#                      if you have a working GPU path.
+DISPLAY_RESOLUTION="1920x1080"
+
+# XFCE window compositing: drop shadows, transparent panels, fade effects.
+# Without GPU acceleration each of those is a full-screen redraw on the CPU, so
+# 'no' keeps the desktop responsive. Set 'yes' if you want the eye candy.
+DESKTOP_COMPOSITING="no"
+
 # Share the clipboard between macOS and the desktop (SPICE): 'yes' or 'no'.
 CLIPBOARD="yes"
 

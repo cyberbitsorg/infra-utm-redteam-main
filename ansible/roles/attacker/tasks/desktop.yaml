@@ -50,3 +50,115 @@
     name: lightdm
     enabled: true
     state: started
+
+# --- Making a CPU-rendered desktop usable -----------------------------------
+# UTM gives this box no working GPU acceleration (see VM_DISPLAY in
+# scripts/lib.sh), so Xorg refuses glamor and paints every pixel on the CPU.
+# What decides whether the desktop is usable is therefore how many pixels there
+# are and how often they are all repainted, which is what these two settings
+# control.
+
+# With DISPLAY_RESOLUTION pinned, UTM no longer resizes the guest, so the guest
+# has to pick the mode itself. A Monitor section is the declarative way to do
+# it: unlike an xrandr call from a session hook it also covers the greeter, and
+# it survives a reboot. An unknown mode is ignored by Xorg rather than fatal,
+# and the monitor's own preferred mode wins instead.
+- name: Find the virtual monitor's output name
+  ansible.builtin.shell:
+    cmd: |
+      set -euo pipefail
+      for c in /sys/class/drm/card*-*/; do
+        [ "$(cat "${c}status" 2>/dev/null)" = "connected" ] || continue
+        basename "$c" | sed 's/^card[0-9]*-//'
+        exit 0
+      done
+  args:
+    executable: /bin/bash
+  register: desktop_drm_output
+  changed_when: false
+
+- name: Ensure the Xorg drop-in directory exists
+  ansible.builtin.file:
+    path: /etc/X11/xorg.conf.d
+    state: directory
+    owner: root
+    group: root
+    mode: "0755"
+
+- name: Pin the desktop to DISPLAY_RESOLUTION
+  ansible.builtin.copy:
+    dest: /etc/X11/xorg.conf.d/10-resolution.conf
+    owner: root
+    group: root
+    mode: "0644"
+    content: |
+      # Managed by Ansible (DISPLAY_RESOLUTION in lab.conf). Do not edit.
+      Section "Monitor"
+          Identifier "{{ desktop_drm_output.stdout | trim }}"
+          Option "PreferredMode" "{{ attacker_display_resolution }}"
+      EndSection
+  when:
+    - (attacker_display_resolution | default('') | length) > 0
+    - (desktop_drm_output.stdout | trim | length) > 0
+  register: desktop_resolution_conf
+
+# Going back to DISPLAY_RESOLUTION=dynamic has to take the file away again, or
+# the guest would stay pinned while UTM tries to resize it.
+- name: Drop the pinned resolution when following the UTM window instead
+  ansible.builtin.file:
+    path: /etc/X11/xorg.conf.d/10-resolution.conf
+    state: absent
+  when: (attacker_display_resolution | default('') | length) == 0
+  register: desktop_resolution_dropped
+
+# Compositing lives in the lab user's own xfconf, so it has to be set as that
+# user. If a desktop session is live its xfconfd owns the file and would write
+# the old value back on logout, so borrow that session's bus instead of
+# starting a private one; then the change also takes effect immediately.
+- name: Set XFCE compositing to DESKTOP_COMPOSITING
+  become: true
+  become_user: "{{ ansible_user }}"
+  ansible.builtin.shell:
+    cmd: |
+      set -euo pipefail
+      want={{ 'true' if (attacker_compositing | default(false) | bool) else 'false' }}
+      pid="$(pgrep -x -u "$(id -u)" xfce4-session | head -1 || true)"
+      if [ -n "$pid" ] && [ -r "/proc/$pid/environ" ]; then
+        bus="$(tr '\0' '\n' < "/proc/$pid/environ" | sed -n 's/^DBUS_SESSION_BUS_ADDRESS=//p' | head -1)"
+        [ -n "$bus" ] && export DBUS_SESSION_BUS_ADDRESS="$bus"
+      fi
+      run() { if [ -n "${DBUS_SESSION_BUS_ADDRESS:-}" ]; then "$@"; else dbus-run-session -- "$@"; fi; }
+      cur="$(run xfconf-query -c xfwm4 -p /general/use_compositing 2>/dev/null || echo unset)"
+      if [ "$cur" = "$want" ]; then echo unchanged; exit 0; fi
+      run xfconf-query -c xfwm4 -p /general/use_compositing --create -t bool -s "$want"
+      echo changed
+    executable: /bin/bash
+  register: desktop_compositing
+  changed_when: "'changed' in desktop_compositing.stdout"
+
+# A resolution change only reaches Xorg when Xorg restarts, and restarting
+# LightDM throws away whatever is open. So do it only when nobody is logged in
+# (the greeter alone is fine) and say so plainly when someone is.
+- name: Check whether a desktop session is in use
+  ansible.builtin.command:
+    cmd: pgrep -x xfce4-session
+  register: desktop_session_live
+  changed_when: false
+  failed_when: false
+
+- name: Restart LightDM to pick up the resolution
+  ansible.builtin.systemd:
+    name: lightdm
+    state: restarted
+  when:
+    - (desktop_resolution_conf.changed | default(false)) or (desktop_resolution_dropped.changed | default(false))
+    - desktop_session_live.rc != 0
+
+- name: Say that the resolution needs a log out to take effect
+  ansible.builtin.debug:
+    msg: >-
+      The desktop resolution changed, but someone is logged into XFCE, so
+      LightDM was left alone. Log out (or reboot) to pick it up.
+  when:
+    - (desktop_resolution_conf.changed | default(false)) or (desktop_resolution_dropped.changed | default(false))
+    - desktop_session_live.rc == 0

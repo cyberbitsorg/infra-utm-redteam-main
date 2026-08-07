@@ -38,3 +38,13 @@ attacker_gui: xfce
 attacker_clipboard: "yes"
 attacker_password: redteam
 
+# Resolution the guest desktop is pinned to, from DISPLAY_RESOLUTION. Empty
+# means DISPLAY_RESOLUTION=dynamic: the guest follows the UTM window instead
+# and nothing is pinned here.
+attacker_display_resolution: 1920x1080
+
+# XFCE window compositing, from DESKTOP_COMPOSITING. Off by default: the
+# display has no GPU acceleration, so every shadow and fade is a full-screen
+# redraw on the CPU.
+attacker_compositing: false
+

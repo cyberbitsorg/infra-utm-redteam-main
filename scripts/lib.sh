@@ -96,6 +96,38 @@ HOST_SSH_PORT=2400
 # instead; see the desktop tuning in the attacker role.
 VM_DISPLAY="virtio-gpu-pci"
 
+# DISPLAY_RESOLUTION is either "dynamic" (the guest desktop follows the UTM
+# window, through the SPICE agent) or a WxH the guest is pinned to while UTM
+# scales the picture into its window. On the CPU-rendered display above, that
+# choice is the difference between a resize costing nothing and a resize
+# freezing the desktop, so a typo has to fail here rather than silently pick a
+# side. Emitted for UTM's "dynamic resolution" property and for Ansible.
+display_dynamic() {
+  case "${DISPLAY_RESOLUTION:-1920x1080}" in
+    dynamic) echo true ;;
+    *) echo false ;;
+  esac
+}
+
+# The pinned resolution, or "" when following the window. Empty is a valid
+# answer here, so callers test the string and not the exit status.
+display_resolution() {
+  local r="${DISPLAY_RESOLUTION:-1920x1080}"
+  [[ "$r" == "dynamic" ]] && { echo ""; return 0; }
+  [[ "$r" =~ ^[0-9]+x[0-9]+$ ]] \
+    || die "DISPLAY_RESOLUTION must be 'dynamic' or <width>x<height>, got '${r}'"
+  echo "$r"
+}
+
+# XFCE compositing, as a bool for Ansible. Costly on a CPU-rendered desktop.
+desktop_compositing() {
+  case "${DESKTOP_COMPOSITING:-no}" in
+    yes|true|1) echo true ;;
+    no|false|0) echo false ;;
+    *) die "DESKTOP_COMPOSITING must be 'yes' or 'no', got '${DESKTOP_COMPOSITING}'" ;;
+  esac
+}
+
 # Persistent data disk kept OUTSIDE the disposable OS lifecycle.
 data_disk_path() { echo "${PERSIST_DIR}/data.qcow2"; }
 

@@ -1,6 +1,8 @@
 -- Read or change the CPU/RAM/display of an EXISTING UTM VM.
--- Usage: vm-config.applescript get <name>       -> prints "<cpu> <ram-mib> <display>"
---        vm-config.applescript set <name> <cpu> <ram-mib> <display> -> prints "ok"
+-- Usage: vm-config.applescript get <name>
+--          -> prints "<cpu> <ram-mib> <display> <dynamic-resolution>"
+--        vm-config.applescript set <name> <cpu> <ram-mib> <display> <dynres>
+--          -> prints "ok"  (dynres is "true" or "false")
 --        vm-config.applescript datadisk <name>  -> prints the source path
 --        of the 3rd drive (the data disk), or "" if fewer than 3 drives
 --
@@ -25,15 +27,22 @@ on run argv
 			set ds to displays of cfg
 			if (count of ds) < 1 then
 				set dispHw to "none"
+				set dynRes to "false"
 			else
 				set dispHw to (hardware of (item 1 of ds)) as text
+				if (dynamic resolution of (item 1 of ds)) then
+					set dynRes to "true"
+				else
+					set dynRes to "false"
+				end if
 			end if
-			return ((cpu cores of cfg) as text) & " " & ((memory of cfg) as text) & " " & dispHw
+			return ((cpu cores of cfg) as text) & " " & ((memory of cfg) as text) & " " & dispHw & " " & dynRes
 		else if op is "set" then
 			set cpuCores to (item 3 of argv) as integer
 			set memMiB to (item 4 of argv) as integer
 			set dispHw to item 5 of argv
-			update configuration vm with {cpu cores:cpuCores, memory:memMiB, displays:{{hardware:dispHw}}}
+			set dynRes to ((item 6 of argv) is "true")
+			update configuration vm with {cpu cores:cpuCores, memory:memMiB, displays:{{hardware:dispHw, dynamic resolution:dynRes}}}
 			return "ok"
 		else if op is "datadisk" then
 			set cfg to configuration of vm

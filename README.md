@@ -81,6 +81,8 @@ to day:
 | `NET_MODE` | `nat` \| `bridged` | `nat` | `nat`: emulated SLIRP NIC, portable, host reaches the box via a `127.0.0.1` SSH forward. `bridged`: the box gets its own LAN IP. See Networking below |
 | `KALI_TOOLSET` | `curated` \| `headless` \| `default` \| `large` | `default` | Which Kali metapackage to install (`kali-linux-default` is the standard installer set) |
 | `ATTACKER_GUI` | `xfce` \| `none` | `xfce` | Whether the XFCE desktop + LightDM greeter is installed |
+| `DISPLAY_RESOLUTION` | `<W>x<H>` \| `dynamic` | `1920x1080` | Pin the guest desktop to a resolution and let UTM scale it into its window, or let the guest follow the window. See The display below |
+| `DESKTOP_COMPOSITING` | `yes` \| `no` | `no` | XFCE drop shadows, transparency and fades. Each is a full-screen CPU redraw here |
 | `CLIPBOARD` | `yes` \| `no` | `yes` | SPICE clipboard sharing (`spice-vdagent`) between macOS and the guest desktop |
 | `KEEP_HOME` | `yes` \| `no` | `yes` | `yes`: the persistent disk is `/home`, so dotfiles, keys and tool state survive a rebuild. `no`: the disk is scratch at `/data` (`~/engagements` points at it) and every rebuild gives a clean home |
 | `SHARED_DIR` | path | `~/Sandbox` | Host folder shared into the guest, mounted in the lab user's home under the same name |
@@ -125,27 +127,38 @@ UTM's SPICE display gives ordinary copy/paste with macOS. Verify with
 
 ### The display
 
-The VM is given UTM's `virtio-gpu-gl-pci` display (`VM_DISPLAY` in
-`scripts/lib.sh`), and `make up` moves an existing VM onto it the same way it
-reconciles cpu and ram. The `-gl` part is not cosmetic: on a non-GL device the
-guest has no OpenGL at all, so Xorg logs `Refusing to try glamor on llvmpipe`
-and renders the desktop on the CPU. At a Retina-sized framebuffer that starves
-`virtio_gpu` until every atomic commit hits its ten-second `flip_done timed
-out`, which freezes or blanks the display for minutes -- most reliably while
-resizing UTM's window, since each resize step fires another modeset.
+The box runs on UTM's `virtio-gpu-pci` display (`VM_DISPLAY` in
+`scripts/lib.sh`), which has **no GPU acceleration**. That is not an oversight.
+UTM's accelerated devices, `virtio-gpu-gl-pci` and `virtio-ramfb-gl`, both come
+up black here: glamor initialises against virgl (ANGLE onto Metal) and Xorg
+logs no error at all, LightDM's greeter starts and prompts for a password, yet
+nothing reaches the framebuffer -- a capture of the root window taken inside the
+guest comes back solid black even immediately after `xsetroot -solid red`.
+Tested on UTM 4.7.5 / Apple silicon. If a later UTM fixes it, `VM_DISPLAY` is
+the one line to change.
 
-`virtio-ramfb-gl` looks like the better pick, since ramfb would also paint UEFI
-and grub before the guest's driver is up. It is not: ramfb is a second scanout,
-and UTM goes on showing that one while the guest draws into the virtio_gpu
-scanout, so the window stays black and the guest is never told the window size.
-Use `make console kali` for the early-boot picture instead.
+So Xorg refuses glamor (`Refusing to try glamor on llvmpipe`) and paints every
+pixel on the CPU. That is survivable, but only if you keep the pixel count and
+the repaint rate down, which is what the two `lab.conf` knobs are for. Left
+unchecked, a Retina-sized framebuffer starves `virtio_gpu` until every atomic
+commit hits its ten-second `flip_done timed out` and the desktop freezes for
+minutes at a stretch:
 
-A healthy display looks like this in the guest:
+- `DISPLAY_RESOLUTION=<W>x<H>` pins the guest and lets UTM scale the picture
+  into its window, so dragging the window costs the guest nothing. Ansible
+  writes the mode into `/etc/X11/xorg.conf.d/10-resolution.conf`, which covers
+  the greeter as well as the session. `dynamic` instead lets the guest follow
+  the window, which turns every resize step into a mode change -- the single
+  most reliable way to lock the display up.
+- `DESKTOP_COMPOSITING=no` turns off XFCE's shadows, transparency and fades,
+  each of which is a full-screen redraw with no GPU behind it.
+
+Both are reconciled onto an existing VM by `make up`, and a resolution change
+restarts LightDM only when nobody is logged in. To check the state in the guest:
 
 ```sh
-cat /proc/fb                     # want exactly one, "0 virtio_gpudrmfb"
-grep glamor /var/log/Xorg.0.log  # want "glamor X acceleration enabled on virgl"
-sudo dmesg | grep -c flip_done   # want 0
+xrandr | grep '\*'               # the mode actually in use
+sudo dmesg | grep -c flip_done   # want 0; anything above 0 means the display is stalling
 ```
 
 ### Sandbox: the shared folder

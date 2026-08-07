@@ -25,6 +25,7 @@ on run argv
 	set dataDiskPath to item 9 of argv
 	set sharePath to item 10 of argv
 	set displayHw to item 11 of argv
+	set dynRes to ((item 12 of argv) is "true")
 
 	-- Every POSIX file coercion has to happen HERE, outside the tell block
 	-- below. Inside it, a bare "POSIX file x" sitting in a record is sent to
@@ -52,10 +53,11 @@ on run argv
 			set theDrives to {{removable:false, source:diskFile}, {removable:false, source:seedFile}}
 		end if
 
-		-- displayHw comes from VM_DISPLAY in lib.sh, which is also what
-		-- create-vm.sh reconciles an existing VM against; see the note there for
-		-- why only the GPU-accelerated (-gl) devices are usable here.
-		set cfg to {name:vmName, architecture:"aarch64", uefi:true, memory:memMiB, cpu cores:cpuCores, drives:theDrives, displays:{{hardware:displayHw}}, network interfaces:nics}
+		-- displayHw and dynRes come from VM_DISPLAY and DISPLAY_RESOLUTION via
+		-- lib.sh, which is also what create-vm.sh reconciles an existing VM
+		-- against; see the notes there for why the device is the non-GL one and
+		-- what dynamic resolution costs on it.
+		set cfg to {name:vmName, architecture:"aarch64", uefi:true, memory:memMiB, cpu cores:cpuCores, drives:theDrives, displays:{{hardware:displayHw, dynamic resolution:dynRes}}, network interfaces:nics}
 
 		-- Optional host directory share. UTM 4.7.x only accepts a share source
 		-- path on the Apple backend: the qemu configuration record has no
