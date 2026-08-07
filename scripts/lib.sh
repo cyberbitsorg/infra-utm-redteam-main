@@ -81,20 +81,20 @@ nic_mode() {
 VM_MAC="52:54:00:AA:00:01"
 HOST_SSH_PORT=2400
 
-# UTM display device. Not a lab.conf knob: the non-GL devices are simply wrong
-# for a desktop box. Without virgl the guest has no GL at all, Xorg refuses
-# glamor ("Refusing to try glamor on llvmpipe") and renders everything on the
-# CPU, which starves virtio_gpu until each atomic commit hits its 10s
-# "flip_done timed out" and the display freezes or blanks for minutes -- most
-# reliably while resizing UTM's window, as every resize step fires a modeset.
+# UTM display device, reconciled onto an existing VM by create-vm.sh. Not a
+# lab.conf knob: there is exactly one device that produces a picture here.
 #
-# It has to be the plain "-gl-pci" device and NOT "virtio-ramfb-gl", tempting as
-# the latter is for painting UEFI and grub before the guest's driver is up:
-# ramfb is a second scanout, and UTM keeps showing that one while the guest
-# draws into the virtio_gpu scanout, so the window stays black and the guest
-# stops being told the window size (it falls back to the EDID default). The
-# early-boot picture is not worth the trade; 'make console kali' covers it.
-VM_DISPLAY="virtio-gpu-gl-pci"
+# The GPU-accelerated devices look like the obvious choice, because without
+# virgl the guest gets no OpenGL, Xorg logs "Refusing to try glamor on
+# llvmpipe" and renders the whole desktop on the CPU. They do not work. On
+# UTM 4.7.5 both "virtio-gpu-gl-pci" and "virtio-ramfb-gl" leave the window
+# black: glamor initialises happily against virgl (ANGLE -> Metal) and Xorg
+# logs no error at all, LightDM's greeter starts and prompts, yet nothing
+# reaches the framebuffer -- an in-guest capture of the root window comes back
+# solid black even right after "xsetroot -solid red". So the acceleration is a
+# dead end on this host and the CPU rendering has to be made survivable
+# instead; see the desktop tuning in the attacker role.
+VM_DISPLAY="virtio-gpu-pci"
 
 # Persistent data disk kept OUTSIDE the disposable OS lifecycle.
 data_disk_path() { echo "${PERSIST_DIR}/data.qcow2"; }
