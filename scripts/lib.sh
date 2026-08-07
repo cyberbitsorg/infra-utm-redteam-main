@@ -87,8 +87,14 @@ HOST_SSH_PORT=2400
 # CPU, which starves virtio_gpu until each atomic commit hits its 10s
 # "flip_done timed out" and the display freezes or blanks for minutes -- most
 # reliably while resizing UTM's window, as every resize step fires a modeset.
-# ramfb additionally paints UEFI and grub, before the guest's driver is up.
-VM_DISPLAY="virtio-ramfb-gl"
+#
+# It has to be the plain "-gl-pci" device and NOT "virtio-ramfb-gl", tempting as
+# the latter is for painting UEFI and grub before the guest's driver is up:
+# ramfb is a second scanout, and UTM keeps showing that one while the guest
+# draws into the virtio_gpu scanout, so the window stays black and the guest
+# stops being told the window size (it falls back to the EDID default). The
+# early-boot picture is not worth the trade; 'make console kali' covers it.
+VM_DISPLAY="virtio-gpu-gl-pci"
 
 # Persistent data disk kept OUTSIDE the disposable OS lifecycle.
 data_disk_path() { echo "${PERSIST_DIR}/data.qcow2"; }

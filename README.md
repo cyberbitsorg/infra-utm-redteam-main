@@ -125,19 +125,27 @@ UTM's SPICE display gives ordinary copy/paste with macOS. Verify with
 
 ### The display
 
-The VM is given UTM's `virtio-ramfb-gl` display (`VM_DISPLAY` in
+The VM is given UTM's `virtio-gpu-gl-pci` display (`VM_DISPLAY` in
 `scripts/lib.sh`), and `make up` moves an existing VM onto it the same way it
-reconciles cpu and ram. The `-gl` half is not cosmetic: on a non-GL device the
+reconciles cpu and ram. The `-gl` part is not cosmetic: on a non-GL device the
 guest has no OpenGL at all, so Xorg logs `Refusing to try glamor on llvmpipe`
 and renders the desktop on the CPU. At a Retina-sized framebuffer that starves
 `virtio_gpu` until every atomic commit hits its ten-second `flip_done timed
 out`, which freezes or blanks the display for minutes -- most reliably while
-resizing UTM's window, since each resize step fires another modeset. Check
-which side you are on with:
+resizing UTM's window, since each resize step fires another modeset.
+
+`virtio-ramfb-gl` looks like the better pick, since ramfb would also paint UEFI
+and grub before the guest's driver is up. It is not: ramfb is a second scanout,
+and UTM goes on showing that one while the guest draws into the virtio_gpu
+scanout, so the window stays black and the guest is never told the window size.
+Use `make console kali` for the early-boot picture instead.
+
+A healthy display looks like this in the guest:
 
 ```sh
-grep glamor /var/log/Xorg.0.log       # want "glamor X acceleration enabled on virgl"
-sudo dmesg | grep -c flip_done        # want 0
+cat /proc/fb                     # want exactly one, "0 virtio_gpudrmfb"
+grep glamor /var/log/Xorg.0.log  # want "glamor X acceleration enabled on virgl"
+sudo dmesg | grep -c flip_done   # want 0
 ```
 
 ### Sandbox: the shared folder
