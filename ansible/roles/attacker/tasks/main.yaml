@@ -3,26 +3,51 @@
 # desktop (a greeter needs the standard kernel's framebuffer); set the console
 # password; install the desktop; wire host integration and mounts; install the
 # toolset last (it can pull GUI apps and is the slowest step).
+#
+# Every include repeats its tags under "apply". That is not redundant. These are
+# dynamic includes, and a tag on include_tasks only decides whether the include
+# itself runs -- it is not inherited by the tasks inside the included file. With
+# the tag in one place only, "--tags desktop" includes desktop.yaml and then
+# matches none of its tasks, so the run reports ok=1 changed=0 and quietly does
+# nothing. "apply" is what pushes the tags down onto the included tasks.
 - name: Console kernel + console security
-  ansible.builtin.include_tasks: console-kernel.yaml
+  ansible.builtin.include_tasks:
+    file: console-kernel.yaml
+    apply:
+      tags: [kernel]
   tags: [kernel]
 
+# Untagged, so any tag subset would skip it and leave a pending reboot handler
+# unflushed going into the desktop. Flushing when nothing is pending is free.
 - name: Apply any pending kernel reboot before the desktop
   ansible.builtin.meta: flush_handlers
+  tags: [always]
 
 - name: Console / GUI password
-  ansible.builtin.include_tasks: console-auth.yaml
+  ansible.builtin.include_tasks:
+    file: console-auth.yaml
+    apply:
+      tags: [auth]
   tags: [auth]
 
 - name: Desktop
-  ansible.builtin.include_tasks: desktop.yaml
+  ansible.builtin.include_tasks:
+    file: desktop.yaml
+    apply:
+      tags: [desktop, gui]
   when: attacker_gui | default('xfce') != 'none'
   tags: [desktop, gui]
 
 - name: Host integration and persistent mounts
-  ansible.builtin.include_tasks: integration.yaml
+  ansible.builtin.include_tasks:
+    file: integration.yaml
+    apply:
+      tags: [integration, mounts]
   tags: [integration, mounts]
 
 - name: Kali toolset
-  ansible.builtin.include_tasks: toolset.yaml
+  ansible.builtin.include_tasks:
+    file: toolset.yaml
+    apply:
+      tags: [toolset, tools]
   tags: [toolset, tools]
