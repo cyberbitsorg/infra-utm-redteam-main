@@ -123,6 +123,23 @@ falling back to a live `utmctl ip-address` query if that file is stale.
 UTM's SPICE display gives ordinary copy/paste with macOS. Verify with
 `systemctl is-active spice-vdagentd`.
 
+### The display
+
+The VM is given UTM's `virtio-ramfb-gl` display (`VM_DISPLAY` in
+`scripts/lib.sh`), and `make up` moves an existing VM onto it the same way it
+reconciles cpu and ram. The `-gl` half is not cosmetic: on a non-GL device the
+guest has no OpenGL at all, so Xorg logs `Refusing to try glamor on llvmpipe`
+and renders the desktop on the CPU. At a Retina-sized framebuffer that starves
+`virtio_gpu` until every atomic commit hits its ten-second `flip_done timed
+out`, which freezes or blanks the display for minutes -- most reliably while
+resizing UTM's window, since each resize step fires another modeset. Check
+which side you are on with:
+
+```sh
+grep glamor /var/log/Xorg.0.log       # want "glamor X acceleration enabled on virgl"
+sudo dmesg | grep -c flip_done        # want 0
+```
+
 ### Sandbox: the shared folder
 
 `SHARED_DIR` on the Mac (`~/Sandbox` by default) appears in the guest home

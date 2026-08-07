@@ -81,6 +81,15 @@ nic_mode() {
 VM_MAC="52:54:00:AA:00:01"
 HOST_SSH_PORT=2400
 
+# UTM display device. Not a lab.conf knob: the non-GL devices are simply wrong
+# for a desktop box. Without virgl the guest has no GL at all, Xorg refuses
+# glamor ("Refusing to try glamor on llvmpipe") and renders everything on the
+# CPU, which starves virtio_gpu until each atomic commit hits its 10s
+# "flip_done timed out" and the display freezes or blanks for minutes -- most
+# reliably while resizing UTM's window, as every resize step fires a modeset.
+# ramfb additionally paints UEFI and grub, before the guest's driver is up.
+VM_DISPLAY="virtio-ramfb-gl"
+
 # Persistent data disk kept OUTSIDE the disposable OS lifecycle.
 data_disk_path() { echo "${PERSIST_DIR}/data.qcow2"; }
 

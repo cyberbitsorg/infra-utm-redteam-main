@@ -24,6 +24,7 @@ on run argv
 	set netMode to item 8 of argv
 	set dataDiskPath to item 9 of argv
 	set sharePath to item 10 of argv
+	set displayHw to item 11 of argv
 
 	-- Every POSIX file coercion has to happen HERE, outside the tell block
 	-- below. Inside it, a bare "POSIX file x" sitting in a record is sent to
@@ -51,7 +52,10 @@ on run argv
 			set theDrives to {{removable:false, source:diskFile}, {removable:false, source:seedFile}}
 		end if
 
-		set cfg to {name:vmName, architecture:"aarch64", uefi:true, memory:memMiB, cpu cores:cpuCores, drives:theDrives, displays:{{hardware:"virtio-gpu-pci"}}, network interfaces:nics}
+		-- displayHw comes from VM_DISPLAY in lib.sh, which is also what
+		-- create-vm.sh reconciles an existing VM against; see the note there for
+		-- why only the GPU-accelerated (-gl) devices are usable here.
+		set cfg to {name:vmName, architecture:"aarch64", uefi:true, memory:memMiB, cpu cores:cpuCores, drives:theDrives, displays:{{hardware:displayHw}}, network interfaces:nics}
 
 		-- Optional host directory share. UTM 4.7.x only accepts a share source
 		-- path on the Apple backend: the qemu configuration record has no

@@ -17,22 +17,23 @@ else
   ssh_port=0
 fi
 
-# Bring an existing VM in line with lab.conf: cpu/ram through UTM. A disk= change
-# cannot be applied to a VM that already exists (see the comment below), so it is
-# only ever compared and reported, never acted on. Only stops and starts the VM
-# when cpu/ram really differ, so a repeat 'make up' restarts nothing.
+# Bring an existing VM in line with lab.conf: cpu/ram and the display device
+# through UTM. A disk= change cannot be applied to a VM that already exists (see
+# the comment below), so it is only ever compared and reported, never acted on.
+# Only stops and starts the VM when something really differs, so a repeat
+# 'make up' restarts nothing.
 reconcile_existing_vm() {
-  local want_cpu="$1" want_ram="$2" want_disk_gb="$3"
-  local cur cur_cpu cur_ram disk candidate cur_bytes want_bytes cur_gb
+  local want_cpu="$1" want_ram="$2" want_disk_gb="$3" want_display="$4"
+  local cur cur_cpu cur_ram cur_display disk candidate cur_bytes want_bytes cur_gb
   local change_hw=0
 
   cur="$(osascript "${REPO_ROOT}/scripts/vm-config.applescript" get "$name" 2>/dev/null || true)"
-  read -r cur_cpu cur_ram <<<"$cur"
-  if [[ -z "${cur_cpu:-}" || -z "${cur_ram:-}" ]]; then
+  read -r cur_cpu cur_ram cur_display <<<"$cur"
+  if [[ -z "${cur_cpu:-}" || -z "${cur_ram:-}" || -z "${cur_display:-}" ]]; then
     warn "${name}: could not read its UTM configuration, leaving it untouched"
     return 0
   fi
-  if [[ "$cur_cpu" != "$want_cpu" || "$cur_ram" != "$want_ram" ]]; then
+  if [[ "$cur_cpu" != "$want_cpu" || "$cur_ram" != "$want_ram" || "$cur_display" != "$want_display" ]]; then
     change_hw=1
   fi
 
@@ -73,29 +74,29 @@ reconcile_existing_vm() {
   # ever started and time out. Starting an already-running VM is a no-op.
   if [[ "$change_hw" -eq 0 ]]; then
     if [[ "$(vm_status "$name")" == "started" ]]; then
-      ok "${name} unchanged (${cur_cpu} cpu, ${cur_ram} MiB)"
+      ok "${name} unchanged (${cur_cpu} cpu, ${cur_ram} MiB, ${cur_display})"
     else
       log "${name}: unchanged but not running, starting it"
       start_vm "$name"
-      ok "${name} started (${cur_cpu} cpu, ${cur_ram} MiB)"
+      ok "${name} started (${cur_cpu} cpu, ${cur_ram} MiB, ${cur_display})"
     fi
     return 0
   fi
 
-  log "${name}: ${cur_cpu}->${want_cpu} cpu, ${cur_ram}->${want_ram} MiB, restarting"
+  log "${name}: ${cur_cpu}->${want_cpu} cpu, ${cur_ram}->${want_ram} MiB, ${cur_display}->${want_display}, restarting"
 
   if ! stop_vm_and_wait "$name"; then
     warn "${name}: did not stop within 60s, leaving it untouched"
     return 0
   fi
-  osascript "${REPO_ROOT}/scripts/vm-config.applescript" set "$name" "$want_cpu" "$want_ram" >/dev/null
+  osascript "${REPO_ROOT}/scripts/vm-config.applescript" set "$name" "$want_cpu" "$want_ram" "$want_display" >/dev/null
   start_vm "$name"
-  ok "${name} updated: cpu and/or ram applied."
+  ok "${name} updated: cpu, ram and/or display applied."
 }
 
 # An existing VM is reconciled, not recreated.
 if vm_exists "$name"; then
-  reconcile_existing_vm "$cpu" "$ram" "$disk_gb"
+  reconcile_existing_vm "$cpu" "$ram" "$disk_gb" "$VM_DISPLAY"
   echo "${name} ${ssh_port} ${mode}"
   exit 0
 fi
@@ -156,7 +157,7 @@ else
   log "Creating VM ${name} in UTM (bridged NIC, own LAN IP; mem ${ram}MiB, ${cpu} cpu, disk ${disk_gb}G, data ${DATA_DISK_GB:-40}G)"
 fi
 vm_id="$(osascript "$(dirname "${BASH_SOURCE[0]}")/create-vm.applescript" \
-  "$name" "$vm_disk" "$seed" "$ram" "$cpu" "$mac" "$ssh_port" "$mode" "$data_disk" "$shared")"
+  "$name" "$vm_disk" "$seed" "$ram" "$cpu" "$mac" "$ssh_port" "$mode" "$data_disk" "$shared" "$VM_DISPLAY")"
 ok "Created ${name} (${vm_id})"
 
 log "Starting ${name}"
