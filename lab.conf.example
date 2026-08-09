@@ -1,17 +1,17 @@
 # infra-utm-redteam-main config. Copy to lab.conf (gitignored) and adjust.
 
 # --- Identity ---
-# UTM VM is named <LAB_PREFIX>-<VM_NAME>
+# LAB_PREFIX is for the VM. VM is named <LAB_PREFIX>-<VM_NAME>
+# LAB_USER is created by cloud-init; Ansible connects as this user
+# LAB_SSH is you SSH key, preflight creates one
 LAB_PREFIX="redteam"
-# Created by cloud-init; Ansible connects as this user
 LAB_USER="redteam"
-# preflight generates one if missing
 LAB_SSH_KEY="${HOME}/.ssh/id_ed25519_redteam.pub"
 
 # --- Console and desktop ---
-# Console + LightDM only; SSH stays key-only
+# ATTACKER_PASSWORD for console + LightDM only; SSH stays key-only
+# ATTACKER_GUI can be xfce or none
 ATTACKER_PASSWORD="redteam"
-# xfce | none
 ATTACKER_GUI="xfce"
 
 # Guest renders on the CPU (see VM_DISPLAY in lib.sh), so pixel count decides smoothness.
@@ -20,9 +20,9 @@ ATTACKER_GUI="xfce"
 #   dynamic follow the window; every resize is a mode change, locks up at Retina sizes
 DISPLAY_RESOLUTION="1920x1080"
 
-# XFCE shadows/fades are full-screen CPU redraws; 'no' stays responsive
+# DESKTOP_COMPOSITING is for XFCE shadows/fades, full-screen CPU redraws
+# CLIPBOARD is SPICE clipboard sharing with macOS
 DESKTOP_COMPOSITING="no"
-# SPICE clipboard sharing with macOS
 CLIPBOARD="yes"
 
 # Host folder shared live into the guest under the same name. Outside the repo so engagement
@@ -42,7 +42,6 @@ KALI_TOOLSET="default"
 #   yes  it is /home, so dotfiles/keys/history/tool state survive a rebuild
 #   no   scratch at /data with ~/engagements -> it; every rebuild gives a clean home
 KEEP_HOME="yes"
-# Size at first creation, GB; never shrunk
 DATA_DISK_GB=40
 
 # --- Virtual machine ---
