@@ -1,16 +1,12 @@
 ---
-# Order is load-bearing: swap to the console kernel and reboot BEFORE the
-# desktop (a greeter needs the standard kernel's framebuffer); set the console
-# password; install the desktop; wire host integration and mounts; add Mullvad
-# once the desktop it puts a browser on exists; install the toolset last (it can
-# pull GUI apps and is the slowest step).
+# Order is load-bearing: the console kernel and its reboot come before the
+# desktop, whose greeter needs that kernel's framebuffer; Mullvad comes after
+# the desktop it puts a browser on; the toolset is last because it is slowest.
 #
-# Every include repeats its tags under "apply". That is not redundant. These are
-# dynamic includes, and a tag on include_tasks only decides whether the include
-# itself runs -- it is not inherited by the tasks inside the included file. With
-# the tag in one place only, "--tags desktop" includes desktop.yaml and then
-# matches none of its tasks, so the run reports ok=1 changed=0 and quietly does
-# nothing. "apply" is what pushes the tags down onto the included tasks.
+# Every include repeats its tags under "apply" on purpose. A tag on a dynamic
+# include_tasks only decides whether the include runs and is not inherited by
+# the tasks inside it, so without "apply" a run like "--tags desktop" includes
+# desktop.yaml, matches none of its tasks and quietly does nothing.
 - name: Console kernel + console security
   ansible.builtin.include_tasks:
     file: console-kernel.yaml
@@ -18,8 +14,8 @@
       tags: [kernel]
   tags: [kernel]
 
-# Untagged, so any tag subset would skip it and leave a pending reboot handler
-# unflushed going into the desktop. Flushing when nothing is pending is free.
+# tags: always, or a tag subset would carry an unflushed reboot handler into
+# the desktop. Flushing when nothing is pending is free.
 - name: Apply any pending kernel reboot before the desktop
   ansible.builtin.meta: flush_handlers
   tags: [always]

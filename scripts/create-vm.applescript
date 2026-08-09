@@ -1,18 +1,11 @@
--- Create one QEMU aarch64 Kali VM in UTM.
+-- Create the QEMU aarch64 Kali VM in UTM. One NIC, mode chosen by netMode:
+--   "nat"     : "emulated" (QEMU SLIRP) with a 127.0.0.1 SSH port-forward.
+--               hostfwd works ONLY here; UTM's vmnet modes drop port forwards.
+--   "bridged" : vmnet-bridged, own DHCP address, no port-forward possible.
 --
--- ONE NIC, mode chosen by netMode:
---   "nat"     : "emulated" (QEMU user/SLIRP) with a 127.0.0.1 SSH port-forward.
---               The hostfwd works ONLY on "emulated"; UTM "shared"/vmnet modes
---               silently drop port forwards.
---   "bridged" : "bridged" (vmnet-bridged) -- the box gets its own DHCP address
---               on the physical LAN. No port-forward is possible here.
---
--- Optional 3rd drive: the persistent data disk (kept in persist/). Optional
--- directory share: the host-side share/ folder.
---
--- This and vm-config.applescript are the ONLY UTM integration points. Property
--- names follow the UTM scripting dictionary (docs.getutm.app/scripting/reference).
--- If a UTM version rejects a key, adjust it here only. See Step 3 validation.
+-- This and vm-config.applescript are the only UTM integration points. Property
+-- names follow docs.getutm.app/scripting/reference; if a UTM version rejects a
+-- key, adjust it in these two files only.
 on run argv
 	set vmName to item 1 of argv
 	set diskPath to item 2 of argv
@@ -27,9 +20,8 @@ on run argv
 	set displayHw to item 11 of argv
 	set dynRes to ((item 12 of argv) is "true")
 
-	-- Every POSIX file coercion has to happen HERE, outside the tell block
-	-- below. Inside it, a bare "POSIX file x" sitting in a record is sent to
-	-- UTM as an object for UTM to resolve, and it fails with
+	-- Every POSIX file coercion has to happen outside the tell block: inside it
+	-- a bare "POSIX file x" in a record is sent to UTM to resolve and fails with
 	-- "Can't get POSIX file ..." (-1728).
 	set diskFile to POSIX file diskPath
 	set seedFile to POSIX file seedPath
@@ -44,28 +36,24 @@ on run argv
 			set nics to {{mode:emulated, address:macAddr, port forwards:{{host address:"127.0.0.1", host port:sshPort, guest port:22}}}}
 		end if
 
-		-- Drives: OS + seed (non-removable so UTM uses VirtIO, not a USB CD-ROM
-		-- that hangs boot on UTM 4.7.x), plus the optional data disk as a 3rd
-		-- non-removable VirtIO drive.
+		-- Non-removable so UTM uses VirtIO and not a USB CD-ROM, which hangs boot
+		-- on UTM 4.7.x. The data disk is the 3rd drive; vm-config.applescript's
+		-- "datadisk" op reads it back by that position.
 		if dataFile is not missing value then
 			set theDrives to {{removable:false, source:diskFile}, {removable:false, source:seedFile}, {removable:false, source:dataFile}}
 		else
 			set theDrives to {{removable:false, source:diskFile}, {removable:false, source:seedFile}}
 		end if
 
-		-- displayHw and dynRes come from VM_DISPLAY and DISPLAY_RESOLUTION via
-		-- lib.sh, which is also what create-vm.sh reconciles an existing VM
-		-- against; see the notes there for why the device is the non-GL one and
-		-- what dynamic resolution costs on it.
+		-- displayHw and dynRes come from VM_DISPLAY and DISPLAY_RESOLUTION in
+		-- lib.sh; see the notes there for why the device is the non-GL one.
 		set cfg to {name:vmName, architecture:"aarch64", uefi:true, memory:memMiB, cpu cores:cpuCores, drives:theDrives, displays:{{hardware:displayHw, dynamic resolution:dynRes}}, network interfaces:nics}
 
-		-- Optional host directory share. UTM 4.7.x only accepts a share source
-		-- path on the Apple backend: the qemu configuration record has no
-		-- "directory shares" property at all, just "directory share mode", and
-		-- passing the source anyway fails the whole creation with -1700. So all
-		-- we can do from here is switch VirtFS (9p) on, which gives the guest
-		-- the "share" tag that integration.yaml mounts. Point it at the host
-		-- folder once in UTM's VM settings; the choice sticks with the VM.
+		-- The qemu backend has no "directory shares" property, only "directory
+		-- share mode", and passing a source path anyway fails creation with
+		-- -1700. So all this can do is switch VirtFS on, which gives the guest
+		-- the "share" tag integration.yaml mounts; the host folder is picked
+		-- once in UTM's VM settings and sticks with the VM.
 		if sharePath is not "" then
 			set cfg to cfg & {directory share mode:VirtFS}
 		end if

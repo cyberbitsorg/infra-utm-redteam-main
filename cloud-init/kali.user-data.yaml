@@ -1,22 +1,17 @@
 #cloud-config
-# Base bootstrap for every lab VM. Placeholders (@@...@@) are filled in by
-# scripts/make-seed.sh. Role-specific software is installed by Ansible, not here,
-# so a single bootstrap keeps all VMs identical at first boot.
+# First-boot bootstrap only; everything else is Ansible's job. Placeholders
+# (@@...@@) are filled in by scripts/make-seed.sh.
 
 hostname: "@@HOSTNAME@@"
 preserve_hostname: false
 
 users:
   - name: "@@LAB_USER@@"
-    # no_user_group passes --no-user-group to useradd, so it does not try to
-    # create a group named after the user. Without it, any LAB_USER that
-    # happens to match an existing group fails the whole users_groups module:
-    # Debian and Kali ship legacy system groups (operator is GID 37, and staff,
-    # games, users and more exist too), and useradd then exits 9 with "group
-    # <name> exists". The user is never created, the key never lands, and
-    # every SSH login fails with "Permission denied (publickey)" while the VM
-    # otherwise boots fine. The user's primary group becomes the useradd
-    # default (users); sudo comes from the groups list below.
+    # Without --no-user-group, a LAB_USER matching one of Kali's legacy system
+    # groups (operator, staff, games, users) makes useradd exit 9 and takes the
+    # whole users_groups module with it: no user, no key, and every SSH login
+    # fails with "Permission denied (publickey)" on a VM that boots fine. The
+    # primary group becomes useradd's default; sudo comes from groups below.
     no_user_group: true
     groups: [sudo]
     shell: /bin/bash
@@ -29,13 +24,10 @@ ssh_pwauth: false
 disable_root: true
 
 write_files:
-  # Disable periodic apt in this hands-off, throwaway lab. Without it,
-  # apt-daily-upgrade runs unattended-upgrades in the background and restarts
-  # openssh; a restart can orphan the running sshd, which keeps holding :22 and
-  # blocks ssh.socket from rebinding ("Address already in use"). ssh.service
-  # then fails its dependency, /run/sshd is never recreated, and every new
-  # connection is closed before the banner. Ansible manages packages here, so
-  # nothing needs the periodic timers.
+  # Ansible manages packages here, so nothing needs the periodic apt timers --
+  # and apt-daily-upgrade restarting openssh can orphan the running sshd, which
+  # keeps holding :22 so ssh.socket cannot rebind ("Address already in use").
+  # Every new connection is then closed before the banner.
   - path: /etc/apt/apt.conf.d/99lab-no-periodic
     content: |
       APT::Periodic::Update-Package-Lists "0";
@@ -50,12 +42,9 @@ packages:
 
 runcmd:
   - [systemctl, enable, --now, qemu-guest-agent]
-  # Pre-create Ansible's remote temp dir. Every play in the playbook runs with
-  # become: true, so Ansible operates as root and its remote_tmp resolves to
-  # /root/.ansible/tmp. If that dir is missing, Ansible creates it on the first
-  # module and prints "Module remote_tmp ... did not exist and was created with
-  # a mode of 0700". Creating it here (root-owned, 0700 -- exactly what Ansible
-  # wants) makes it already exist, so the warning never appears.
+  # Every play runs with become: true, so Ansible's remote_tmp resolves to
+  # /root/.ansible/tmp. Pre-creating it exactly as Ansible wants keeps it from
+  # warning that it had to create the directory itself.
   - [install, -d, -m, "0700", -o, root, -g, root, /root/.ansible/tmp]
 
 # Grow the root filesystem to fill the resized virtual disk.

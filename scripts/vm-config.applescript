@@ -6,13 +6,8 @@
 --        vm-config.applescript datadisk <name>  -> prints the source path
 --        of the 3rd drive (the data disk), or "" if fewer than 3 drives
 --
--- UTM only allows `update configuration` while the VM is stopped; the caller
--- (scripts/create-vm.sh) stops it first.
---
--- NOTE: This and create-vm.applescript are the only places that talk to UTM.
--- Property names follow the UTM AppleScript dictionary
--- (docs.getutm.app/scripting/reference). If a future UTM version rejects a
--- key, adjust it here only.
+-- UTM only allows `update configuration` on a stopped VM; create-vm.sh stops it
+-- first. See create-vm.applescript for the note on property names.
 on run argv
 	set op to item 1 of argv
 	set vmName to item 2 of argv
@@ -21,9 +16,8 @@ on run argv
 		set vm to virtual machine named vmName
 		if op is "get" then
 			set cfg to configuration of vm
-			-- A VM always has exactly one display here, but read defensively:
-			-- a display-less configuration would otherwise error out the whole
-			-- reconcile instead of just reporting an unknown value.
+			-- Read defensively: a display-less configuration would otherwise
+			-- error out the whole reconcile instead of reporting an unknown.
 			set ds to displays of cfg
 			if (count of ds) < 1 then
 				set dispHw to "none"

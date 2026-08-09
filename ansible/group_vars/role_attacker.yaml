@@ -1,14 +1,12 @@
 ---
-# Toolset selection. up.sh passes -e attacker_toolset from KALI_TOOLSET.
+# Every one of these is overridden by up.sh from the matching lab.conf knob;
+# the values here are the defaults for a direct ansible-playbook run.
 attacker_toolset: default
 
-# Name of the shared folder in the lab user's home. up.sh passes it from the
-# basename of SHARED_DIR, so the Mac and the guest always agree on the name.
+# Basename of SHARED_DIR, so the Mac and the guest agree on the folder name.
 attacker_shared_name: Sandbox
 
-# Whether the persistent disk becomes /home (dotfiles, keys and tool state
-# survive a rebuild) or stays scratch space at /data. up.sh passes it from
-# KEEP_HOME.
+# Persistent disk as /home (true) or scratch at /data (false).
 attacker_keep_home: true
 
 attacker_packages_curated:
@@ -33,23 +31,17 @@ attacker_packages: >-
      else attacker_packages_large if attacker_toolset == 'large'
      else attacker_packages_default }}
 
-# Desktop and console. up.sh passes these from lab.conf.
 attacker_gui: xfce
 attacker_clipboard: "yes"
 attacker_password: redteam
 
-# Resolution the guest desktop is pinned to, from DISPLAY_RESOLUTION. Empty
-# means DISPLAY_RESOLUTION=dynamic: the guest follows the UTM window instead
-# and nothing is pinned here.
+# Empty means DISPLAY_RESOLUTION=dynamic: the guest follows the UTM window and
+# nothing is pinned.
 attacker_display_resolution: 1920x1080
 
-# XFCE window compositing, from DESKTOP_COMPOSITING. Off by default: the
-# display has no GPU acceleration, so every shadow and fade is a full-screen
-# redraw on the CPU.
+# Off by default: without GPU acceleration every shadow and fade is a
+# full-screen CPU redraw.
 attacker_compositing: false
 
-# Mullvad VPN app and Mullvad Browser, from MULLVAD. Off by default: it adds a
-# third-party apt repository, which is not something to hand a box that did not
-# ask for it.
+# Off by default: it adds a third-party apt repository.
 attacker_mullvad: false
-

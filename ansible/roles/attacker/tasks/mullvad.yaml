@@ -1,13 +1,11 @@
 ---
-# Mullvad VPN app and Mullvad Browser, from Mullvad's own apt repository, behind
-# the single MULLVAD knob in lab.conf. Kali packages neither, and the .deb
-# downloads carry no upgrade path, so the repository is what keeps both current
-# with the rest of the box's `apt upgrade`.
+# Mullvad VPN app and Mullvad Browser, behind the single MULLVAD knob. Kali
+# packages neither and the .deb downloads carry no upgrade path, so the
+# repository is what keeps both current with the box's normal apt upgrade.
 #
-# attacker_mullvad false is a real removal, not a skip: the packages are purged
-# and the repository and its key are taken back out, so a box that had MULLVAD
-# on and then off is the same as one that never had it. Purging mullvad-vpn
-# also drops /etc/mullvad-vpn, so the logged-in account goes with it.
+# attacker_mullvad false is a real removal, not a skip: packages purged,
+# repository and key taken back out. Purging mullvad-vpn also drops
+# /etc/mullvad-vpn, and with it the logged-in account.
 
 - name: Read the guest's dpkg architecture
   ansible.builtin.command:
@@ -15,10 +13,9 @@
   register: attacker_dpkg_arch
   changed_when: false
 
-# Mullvad publishes stable Mullvad Browser for amd64 only: it is built from Tor
-# Browser, which has no stable Linux aarch64 release. On this ARM64 box the
-# alpha channel is therefore the only Mullvad Browser there is, and it is a
-# separate package (mullvad-browser-alpha) rather than a channel of the same
+# Stable Mullvad Browser is amd64 only, because it comes from Tor Browser,
+# which has no stable Linux aarch64 release. On arm64 the alpha channel is the
+# only one there is, as a separate package rather than a channel of the same
 # one. The VPN app itself ships arm64 as a normal stable build.
 - name: Pick the Mullvad Browser package for this architecture
   ansible.builtin.set_fact:
@@ -46,10 +43,9 @@
     mode: "0644"
   when: attacker_mullvad | bool
 
-# The suite is "stable", spelled out rather than taken from `lsb_release -cs`
-# the way Mullvad's own instructions do. On Kali that command answers
-# "kali-rolling", which is not a suite this repository has, and apt would fail
-# on every update from then on. All of Mullvad's suites carry the same builds.
+# The suite is spelled out rather than taken from `lsb_release -cs` the way
+# Mullvad's instructions do: on Kali that answers "kali-rolling", which this
+# repository has no suite for, and apt would fail on every update from then on.
 - name: Add the Mullvad apt repository
   ansible.builtin.apt_repository:
     filename: mullvad
@@ -60,9 +56,8 @@
     update_cache: true
   when: attacker_mullvad | bool
 
-# The browser is a desktop application with no headless use, so it only follows
-# when there is a desktop to run it on. The VPN is useful either way: without a
-# GUI the `mullvad` CLI drives the same daemon.
+# The browser has no headless use, so it only follows when there is a desktop.
+# The VPN is useful either way: the `mullvad` CLI drives the same daemon.
 - name: Install the Mullvad VPN app and Mullvad Browser
   ansible.builtin.apt:
     name: >-
@@ -73,8 +68,8 @@
     cache_valid_time: 3600
   when: attacker_mullvad | bool
 
-# The postinst enables it already; stated here so a daemon that was disabled by
-# hand comes back on the next configure run.
+# The postinst does this already; stated so a daemon disabled by hand comes
+# back on the next configure run.
 - name: Enable the Mullvad daemon
   ansible.builtin.systemd_service:
     name: mullvad-daemon
@@ -90,8 +85,8 @@
   when: attacker_mullvad | bool
 
 # --- Removal ----------------------------------------------------------------
-# Packages first, repository second: dropping the sources file first would take
-# the packages' origin away while they are still installed.
+# Packages first: dropping the sources file would take their origin away while
+# they are still installed.
 - name: Purge the Mullvad packages
   ansible.builtin.apt:
     name:

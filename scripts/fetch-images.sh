@@ -6,10 +6,9 @@ source "$(dirname "${BASH_SOURCE[0]}")/lib.sh"
 load_config
 mkdir -p "$IMAGES_DIR"
 
-# Verify <file> against a <sums_file> line matching <basename>. Handles the
-# optional "*" binary marker in checksum files. The filename is compared as an
-# exact field, not a regex, so metacharacters in the name (the dots in an image
-# file name) can never match the wrong checksum line.
+# Verify <file> against a <sums_file> line matching <basename>. The name is
+# compared as an exact field, not a regex, so the dots in an image file name
+# can never match the wrong checksum line. "*" is the binary marker.
 verify_file() {
   local file=$1 sums=$2 base=$3 expected actual
   [[ -f "$file" && -f "$sums" ]] || return 1
@@ -19,11 +18,9 @@ verify_file() {
   [[ "$expected" == "$actual" ]]
 }
 
-# Kali is distributed as an archive; the published SHA256SUMS covers that
-# archive, not the raw disk we extract from it. So once extracted we record the
-# raw disk's own checksum in a sidecar and re-check it on every later run --
-# otherwise a truncated first extraction would be trusted forever (unlike the
-# Ubuntu image, whose upstream checksum re-verifies the file we actually keep).
+# The published SHA256SUMS covers the archive, not the raw disk extracted from
+# it, so the disk's own checksum goes into a sidecar and is re-checked on every
+# later run. Without that, a truncated first extraction is trusted forever.
 fetch_kali() {
   local out sidecar archive sums base
   out="${IMAGES_DIR}/${KALI_IMG_FILE}"
@@ -34,8 +31,8 @@ fetch_kali() {
       return
     fi
     if [[ ! -f "$sidecar" ]]; then
-      # Image from before the sidecar existed: adopt it (trust on first use)
-      # rather than force a ~25 GiB re-download, and verify it from here on.
+      # Image from before the sidecar existed: trust on first use rather than
+      # force a multi-GB re-download, and verify it from here on.
       shasum -a 256 "$out" > "$sidecar"
       ok "Kali image present, recorded its checksum for future runs: ${out}"
       return

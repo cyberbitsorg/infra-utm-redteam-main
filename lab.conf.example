@@ -2,80 +2,70 @@
 # Copy to lab.conf and adjust. lab.conf is gitignored.
 
 # --- Identity ---------------------------------------------------------------
-# Prefix for the UTM VM name, so the box is easy to spot: <LAB_PREFIX>-<name>.
+# The UTM VM is named <LAB_PREFIX>-<VM_NAME>.
 LAB_PREFIX="redteam"
 
-# User created inside the VM (cloud-init); Ansible connects as this user. Avoid
-# a name that is already a system group in the guest (operator, staff, games,
-# users); cloud-init handles the clash, but a free name is simpler.
+# User created inside the VM by cloud-init; Ansible connects as this user.
 LAB_USER="redteam"
 
-# Public SSH key injected into the VM. scripts/preflight.sh generates one if
-# the file does not exist.
+# Public SSH key injected into the VM. preflight.sh generates one if missing.
 LAB_SSH_KEY="${HOME}/.ssh/id_ed25519_redteam.pub"
 
 # --- Networking -------------------------------------------------------------
-# How the single NIC is attached:
-#   nat     : emulated SLIRP NIC. Internet + LAN visibility plus a 127.0.0.1
-#             SSH port-forward ('make ssh'). Portable; works on any Wi-Fi.
-#   bridged : vmnet-bridged NIC. The box gets its own DHCP IP on the physical
-#             LAN (LLMNR/NBNS poisoning, ARP spoof, inbound callbacks). No host
-#             port-forward; 'make ssh' uses the discovered LAN IP.
+# How the single NIC is attached. Cannot be changed on an existing VM: flip it
+# and rebuild with 'make destroy' then 'make up'.
+#   nat     : emulated SLIRP NIC with a 127.0.0.1 SSH port-forward. Portable;
+#             works on any Wi-Fi.
+#   bridged : own DHCP address on the physical LAN (ARP spoofing, LLMNR/NBNS
+#             poisoning, inbound callbacks). No port-forward; 'make ssh' uses
+#             the discovered LAN IP.
 NET_MODE="nat"
 
 # --- Console and desktop ----------------------------------------------------
 # Password for the lab user on the console and the LightDM greeter. SSH stays
-# key-only regardless. lab.conf is gitignored, so this never lands in git.
+# key-only regardless.
 ATTACKER_PASSWORD="redteam"
 
-# Graphical desktop rendered in UTM's window: 'xfce' (default) or 'none'.
+# Graphical desktop in UTM's window: 'xfce' or 'none'.
 ATTACKER_GUI="xfce"
 
-# Desktop resolution. UTM's GPU-accelerated displays produce no picture at all
-# on this setup (see VM_DISPLAY in scripts/lib.sh), so the guest renders the
-# whole desktop on the CPU and the pixel count is what decides whether it stays
-# usable.
-#   <width>x<height> : pin the guest to this resolution and let UTM scale the
-#                      picture to whatever size its window has. Resizing the
-#                      window then costs the guest nothing. Pick a mode the
-#                      virtual monitor offers (1920x1080, 1680x1050, 1600x1200,
+# Desktop resolution. UTM's GPU-accelerated displays produce no picture here
+# (see VM_DISPLAY in scripts/lib.sh), so the guest renders on the CPU and the
+# pixel count decides whether the desktop stays usable.
+#   <width>x<height> : pin the guest and let UTM scale into its window, so a
+#                      resize costs the guest nothing. Pick a mode the virtual
+#                      monitor offers (1920x1080, 1680x1050, 1600x1200,
 #                      1440x900, 1280x1024, 1024x768); an unknown one is
-#                      ignored and the monitor's own preferred mode wins.
-#   dynamic          : let the guest desktop follow the UTM window instead.
-#                      Every resize step then becomes a mode change at whatever
-#                      size the window has, and at Retina sizes that is what
-#                      locks the display up for minutes on end. Only worth it
-#                      if you have a working GPU path.
+#                      ignored in favour of the monitor's preferred mode.
+#   dynamic          : let the desktop follow the UTM window. Every resize step
+#                      becomes a mode change, which at Retina sizes is what
+#                      locks the display up for minutes on end.
 DISPLAY_RESOLUTION="1920x1080"
 
-# XFCE window compositing: drop shadows, transparent panels, fade effects.
-# Without GPU acceleration each of those is a full-screen redraw on the CPU, so
-# 'no' keeps the desktop responsive. Set 'yes' if you want the eye candy.
+# XFCE drop shadows, transparency and fades: 'yes' or 'no'. Each is a
+# full-screen CPU redraw here, so 'no' keeps the desktop responsive.
 DESKTOP_COMPOSITING="no"
 
 # Share the clipboard between macOS and the desktop (SPICE): 'yes' or 'no'.
 CLIPBOARD="yes"
 
-# Host folder shared live into the guest, where it is mounted under the same
-# name in the lab user's home (~/Sandbox by default). Rename it here and both
-# sides follow. Kept outside the repo so engagement files never land in a git
-# working tree. The folder must be pointed at once in UTM's VM settings; see
-# the README. The folder name cannot contain spaces (it becomes an fstab entry).
+# Host folder shared live into the guest, mounted under the same name in the
+# lab user's home. Rename it here and both sides follow. Kept outside the repo
+# so engagement files never land in a git working tree. It has to be pointed at
+# once in UTM's VM settings; see the README. No spaces in the folder name (it
+# becomes an fstab entry).
 SHARED_DIR="${HOME}/Sandbox"
 
 # --- Mullvad ----------------------------------------------------------------
-# Install the Mullvad VPN app and Mullvad Browser from Mullvad's own apt
-# repository: 'yes' or 'no'. One knob for both.
+# Install the Mullvad VPN app and Mullvad Browser: 'yes' or 'no'. Neither is in
+# Kali, so this adds Mullvad's own signed apt repository and both stay current
+# with the box's normal apt upgrades. The browser needs ATTACKER_GUI to be a
+# desktop; the VPN also works headless through the 'mullvad' CLI. Nothing is
+# logged in for you: run 'mullvad account login <number>' on the box.
 #
-# Neither is in Kali, so this adds a third-party repository (signed with
-# Mullvad's key) and both stay current with the box's normal apt upgrades. The
-# browser is only installed when ATTACKER_GUI is a desktop; the VPN also works
-# headless through the 'mullvad' CLI. Nothing is logged in for you: run
-# 'mullvad account login <number>' on the box.
-#
-# On this ARM64 box the browser is Mullvad Browser *alpha* -- Mullvad builds the
-# stable one for amd64 only, because it comes from Tor Browser, which has no
-# stable Linux aarch64 release.
+# On arm64 the browser is Mullvad Browser *alpha* -- the stable one is amd64
+# only, because it comes from Tor Browser, which has no stable Linux aarch64
+# release.
 #
 # 'no' purges both packages and removes the repository again, which also drops
 # /etc/mullvad-vpn and with it the logged-in account.
@@ -91,22 +81,19 @@ KALI_TOOLSET="default"
 
 # --- Persistence ------------------------------------------------------------
 # A second disk in persist/ that survives 'make destroy' and is re-attached on
-# the next 'make up', so a rebuild gives a fresh OS with your work intact.
-# KEEP_HOME decides what that disk is for:
-#   yes : the disk holds /home, so dotfiles, SSH keys, shell history and tool
-#         state all survive a rebuild. You never get a clean home, so a broken
-#         config sticks around just as well as a good one.
-#   no  : the disk is scratch space at /data, with ~/engagements pointing at
-#         it, and every rebuild gives you a clean home.
-# Switching from yes to no cannot be done on a running box (it would pull /home
-# out from under everything); rebuild with 'make destroy' then 'make up'.
+# the next 'make up'. KEEP_HOME decides what it is for:
+#   yes : the disk is /home, so dotfiles, SSH keys, shell history and tool state
+#         survive a rebuild. You never get a clean home, so a broken config
+#         sticks around just as well as a good one.
+#   no  : the disk is scratch at /data with ~/engagements pointing at it, and
+#         every rebuild gives a clean home.
+# Going from yes to no cannot be done on a running box; rebuild instead.
 KEEP_HOME="yes"
 
 # Size of the persistent disk at first creation, in GB. Never shrunk.
 DATA_DISK_GB=40
 
 # --- Virtual machine --------------------------------------------------------
-# The UTM VM is named <LAB_PREFIX>-<VM_NAME>.
 VM_NAME="kali"
 VM_CPU=4
 VM_RAM=8192

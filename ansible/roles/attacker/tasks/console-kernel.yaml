@@ -1,8 +1,7 @@
 ---
-# Kali genericcloud runs a cloud kernel with no virtio_gpu/DRM, so UTM's display
-# stays blank. Install the standard kernel and make grub default to it; keep the
-# cloud kernel as a fallback (purging it wedges boot). Driven over SSH; the
-# console/desktop is the payoff.
+# The genericcloud image's cloud kernel has no virtio_gpu/DRM, so UTM's display
+# stays blank. Install the standard kernel and make grub default to it, keeping
+# the cloud kernel as a fallback because purging it wedges boot.
 - name: Install the standard Kali kernel (virtio_gpu for the console)
   ansible.builtin.apt:
     name: linux-image-arm64

@@ -15,10 +15,9 @@ rows="$(cat)"
   echo "all:"
   echo "  vars:"
   echo "    ansible_user: ${LAB_USER}"
-  # Pin the key here, from the same LAB_SSH_KEY the seed baked in. Without it
-  # Ansible falls back to whatever private_key_file ansible.cfg or the agent
-  # offers, and every play dies on "Permission denied (publickey)" against a
-  # VM that plain `make ssh` reaches fine.
+  # The same LAB_SSH_KEY the seed baked in. Without it Ansible falls back to
+  # whatever ansible.cfg or the agent offers and every play dies on "Permission
+  # denied (publickey)" against a VM that plain `make ssh` reaches fine.
   echo "    ansible_ssh_private_key_file: $(priv_key)"
   echo "    ansible_ssh_common_args: '-o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null'"
   echo "  hosts:"

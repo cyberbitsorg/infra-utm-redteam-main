@@ -13,11 +13,10 @@ read -r -p "Type 'yes' to continue: " confirm
 log "Stopping ${name}"
 stop_vm_and_wait "$name" 30 || warn "${name} did not stop in time, trying to delete anyway"
 
-# Preserve the persistent data disk: UTM imported persist/data.qcow2 into the
-# VM bundle at creation, so the LIVE data is the bundle copy, not persist/.
-# Copy it back out (now that the VM is stopped, so the qcow2 is quiescent)
-# before deleting the VM, so a rebuild re-imports current work. Best-effort:
-# a failure here must not block teardown, but is warned.
+# UTM imported persist/data.qcow2 into the VM bundle at creation, so the live
+# data is the bundle copy. Copy it back out while the VM is stopped and the
+# qcow2 is quiescent, so the next make up re-imports current work. Best-effort:
+# a failure here warns but must not block teardown.
 if vm_exists "$name"; then
   bundle_disk="$(osascript "${REPO_ROOT}/scripts/vm-config.applescript" datadisk "$name" 2>/dev/null || true)"
   if [[ -n "$bundle_disk" && -f "$bundle_disk" ]]; then

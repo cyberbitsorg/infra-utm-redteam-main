@@ -17,11 +17,10 @@ else
   ssh_port=0
 fi
 
-# Bring an existing VM in line with lab.conf: cpu/ram and the display device
-# through UTM. A disk= change cannot be applied to a VM that already exists (see
-# the comment below), so it is only ever compared and reported, never acted on.
-# Only stops and starts the VM when something really differs, so a repeat
-# 'make up' restarts nothing.
+# Bring an existing VM in line with lab.conf's cpu/ram/display. Only stops and
+# starts it when something really differs, so a repeat 'make up' restarts
+# nothing. NET_MODE is not reconciled: UTM cannot rewire a NIC on an existing
+# VM, and up.sh catches the mismatch when it discovers the address.
 reconcile_existing_vm() {
   local want_cpu="$1" want_ram="$2" want_disk_gb="$3" want_display="$4" want_dynres="$5"
   local cur cur_cpu cur_ram cur_display cur_dynres disk candidate cur_bytes want_bytes cur_gb
@@ -38,13 +37,9 @@ reconcile_existing_vm() {
     change_hw=1
   fi
 
-  # Disk size is compare-and-report ONLY, never acted on. UTM imports and
-  # converts this staging file into its own bundle at VM creation time (see
-  # the note by "cp -c" below); once a VM exists in UTM, this file is not its
-  # live disk and resizing it here would change nothing the VM uses while
-  # making the staging file lie about the VM's real size on every later run.
-  # So the disk never contributes to the restart decision, and the file is
-  # never written here.
+  # Compare-and-report only. UTM copied this staging file into its own bundle
+  # at creation time, so it is no longer the VM's live disk: resizing it here
+  # would change nothing and only make the staging file lie about the real size.
   disk=""
   for candidate in "${GEN_DIR}/${name}.qcow2" "${GEN_DIR}/${name}.raw"; do
     if [[ -f "$candidate" ]]; then
@@ -69,10 +64,9 @@ reconcile_existing_vm() {
     warn "${name}: could not check its disk size (no staging file in ${GEN_DIR}, was generated/ cleared after this VM was created?)"
   fi
 
-  # No hardware change: nothing to reconfigure, but 'make up' must still bring a
-  # stopped VM up (after a reboot or 'make down' the config is unchanged yet the
-  # VM is not running). Without this, up.sh would wait on SSH for a VM nothing
-  # ever started and time out. Starting an already-running VM is a no-op.
+  # Nothing to reconfigure, but 'make up' must still start a stopped VM (after
+  # a reboot or 'make down' the config is unchanged yet nothing is running),
+  # or up.sh would wait out its SSH timeout. Starting a running VM is a no-op.
   if [[ "$change_hw" -eq 0 ]]; then
     if [[ "$(vm_status "$name")" == "started" ]]; then
       ok "${name} unchanged (${cur_cpu} cpu, ${cur_ram} MiB, ${cur_display}, dynres ${cur_dynres})"
@@ -109,38 +103,28 @@ base_img="$(base_image)"
 [[ -f "$base_img" ]] || die "Base image missing (${base_img}). Run scripts/fetch-images.sh first."
 QEMU_IMG="$(find_qemu_img)" || die "qemu-img not found"
 
-# Name the working disk by its actual format so UTM/QEMU never guess wrong
-# (Kali ships raw-in-.raw).
+# Name the working disk by its actual format so UTM/QEMU never guess wrong.
 img_fmt="$("$QEMU_IMG" info "$base_img" | sed -n 's/^file format: //p' | head -1)"
 case "$img_fmt" in
   qcow2) vm_disk="${GEN_DIR}/${name}.qcow2" ;;
   raw)   vm_disk="${GEN_DIR}/${name}.raw" ;;
   *)     vm_disk="${GEN_DIR}/${name}.${base_img##*.}" ;;
 esac
-# APFS clone (instant, space-free, sparse-preserving) with a plain-copy fallback.
-# This file is staging input only. create-vm.applescript hands it to UTM once,
-# and UTM imports and converts it into its own VM bundle under its app
-# container, in a format of its choosing. From that point on, this staged
-# file here in generated/ is never read or written by the running VM, so it
-# must only be resized here, before creation, never afterward.
+# APFS clone (instant, sparse-preserving) with a plain-copy fallback. Staging
+# input only: UTM copies it into its own bundle at creation, so it must be
+# resized here, before the VM exists, and never afterwards.
 cp -c "$base_img" "$vm_disk" 2>/dev/null || cp "$base_img" "$vm_disk"
 
-# Grow to the requested size, but never shrink (the Kali image already exceeds
-# the usual default). This runs BEFORE the VM is created below, so the size
-# really does land in the VM UTM is about to build.
+# Grow to the requested size, never shrink. -f suppresses the format-probing
+# warning qemu-img prints for a raw disk on every run.
 cur_bytes="$(disk_bytes "$vm_disk")"
 target_bytes=$(( disk_gb * 1024 * 1024 * 1024 ))
 if [[ -n "$cur_bytes" && "$target_bytes" -gt "$cur_bytes" ]]; then
-  # Pass the format explicitly. resize opens the image read-write, and for a
-  # raw disk qemu-img would otherwise probe the format and print a warning
-  # ("Image format was not specified ... probing guessed raw") on every run.
-  # img_fmt came straight from `qemu-img info` above, so it is always set.
   "$QEMU_IMG" resize -f "$img_fmt" "$vm_disk" "${disk_gb}G" >/dev/null
 fi
 
 # Persistent data disk: created once, kept in persist/ across make destroy, and
-# re-imported by UTM on every (re)creation. Never resized down; grown only by
-# recreating. DATA_DISK_GB defaults to 40.
+# re-imported by UTM on every (re)creation. Grown only by recreating.
 data_disk="$(data_disk_path)"
 if [[ ! -f "$data_disk" ]]; then
   mkdir -p "$PERSIST_DIR"
