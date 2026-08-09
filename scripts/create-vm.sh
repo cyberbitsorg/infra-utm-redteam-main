@@ -118,12 +118,19 @@ if [[ -n "$cur_bytes" && "$target_bytes" -gt "$cur_bytes" ]]; then
 fi
 
 # Persistent data disk: created once, kept in persist/ across make destroy, and
-# re-imported by UTM on every (re)creation. Grown only by recreating.
-data_disk="$(data_disk_path)"
-if [[ ! -f "$data_disk" ]]; then
-  mkdir -p "$PERSIST_DIR"
-  log "Creating persistent data disk ${data_disk} (${DATA_DISK_GB:-40}G)"
-  "$QEMU_IMG" create -f qcow2 "$data_disk" "${DATA_DISK_GB:-40}G" >/dev/null
+# re-imported by UTM on every (re)creation. Grown only by recreating. KEEP_HOME=no
+# gets no such disk at all, so nothing on the box outlives a destroy; a disk that
+# is attached but holds nothing is exactly the half state this switch avoids.
+data_disk=""
+data_note="no persistent /home (KEEP_HOME=no)"
+if [[ "$(keep_home)" == "true" ]]; then
+  data_disk="$(data_disk_path)"
+  data_note="persistent /home ${DATA_DISK_GB:-40}G"
+  if [[ ! -f "$data_disk" ]]; then
+    mkdir -p "$PERSIST_DIR"
+    log "Creating persistent data disk ${data_disk} (${DATA_DISK_GB:-40}G)"
+    "$QEMU_IMG" create -f qcow2 "$data_disk" "${DATA_DISK_GB:-40}G" >/dev/null
+  fi
 fi
 
 log "Building cloud-init seed for ${name}"
@@ -131,7 +138,7 @@ seed="$("$(dirname "${BASH_SOURCE[0]}")/make-seed.sh" "$VM_NAME" "$mac" | tail -
 
 shared="$(shared_dir)"
 mkdir -p "$shared"
-log "Creating VM ${name} in UTM (ssh->127.0.0.1:${ssh_port}; mem ${ram}MiB, ${cpu} cpu, disk ${disk_gb}G, data ${DATA_DISK_GB:-40}G)"
+log "Creating VM ${name} in UTM (ssh->127.0.0.1:${ssh_port}; mem ${ram}MiB, ${cpu} cpu, disk ${disk_gb}G, ${data_note})"
 vm_id="$(osascript "$(dirname "${BASH_SOURCE[0]}")/create-vm.applescript" \
   "$name" "$vm_disk" "$seed" "$ram" "$cpu" "$mac" "$ssh_port" "$data_disk" "$shared" "$VM_DISPLAY" "$(display_dynamic)")"
 ok "Created ${name} (${vm_id})"

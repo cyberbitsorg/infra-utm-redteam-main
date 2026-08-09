@@ -73,9 +73,9 @@ make test          # run the shell unit tests
 | `DESKTOP_COMPOSITING` | `yes` \| `no` | `no` | XFCE shadows, transparency and fades. Each is a full-screen CPU redraw here |
 | `CLIPBOARD` | `yes` \| `no` | `yes` | SPICE clipboard sharing with macOS |
 | `MULLVAD` | `yes` \| `no` | `no` | Mullvad VPN app and Mullvad Browser. See Mullvad |
-| `KEEP_HOME` | `yes` \| `no` | `yes` | `yes`: the persistent disk is `/home`. `no`: scratch at `/data`, with `~/engagements` pointing at it |
+| `KEEP_HOME` | `yes` \| `no` | `yes` | `yes`: `/home` is a second disk that `make destroy` keeps. `no`: no second disk, so every rebuild starts with an empty home |
 | `SHARED_DIR` | path | `~/Sandbox` | Host folder shared into the guest under the same name |
-| `DATA_DISK_GB` | integer | `40` | Size of the persistent disk at first creation; never shrunk |
+| `DATA_DISK_GB` | integer | `40` | Size of that second disk at first creation; never shrunk. Ignored with `KEEP_HOME=no` |
 | `VM_NAME` | string | `kali` | The UTM VM is `<LAB_PREFIX>-<VM_NAME>` |
 | `VM_CPU` / `VM_RAM` / `VM_DISK_GB` | integer | `4` / `8192` / `80` | Cores / MiB / GB |
 
@@ -176,22 +176,27 @@ touched.
 
 ### Persistence
 
-The persistent disk (`persist/data.qcow2`, `DATA_DISK_GB`) is formatted ext4 on
-first use only and survives `make destroy`. `KEEP_HOME` decides what it is for.
+`KEEP_HOME` answers one question -- does `/home` survive a rebuild -- and it is
+all or nothing. There is no setting that keeps part of the box.
 
-With `KEEP_HOME=yes` the disk becomes `/home`, so dotfiles, SSH keys, shell
-history and tool state all survive a rebuild. Before mounting it the first
-time, provisioning copies the current `/home` onto the disk and refuses to
-mount unless the lab user's `.ssh` is on it -- without that, a bare disk would
-bury `authorized_keys` and lock you out on the next connection.
+`KEEP_HOME=yes` gives the VM a second disk (`persist/data.qcow2`,
+`DATA_DISK_GB`), formatted ext4 on first use only, and mounts it at `/home`. So
+dotfiles, SSH keys, shell history and tool state all survive a rebuild. Before
+mounting it the first time, provisioning copies the current `/home` onto the
+disk and refuses to mount unless the lab user's `.ssh` is on it -- without that,
+a bare disk would bury `authorized_keys` and lock you out on the next
+connection.
 
-With `KEEP_HOME=no` the disk is scratch space at `/data`, `~/engagements`
-points at it, and every rebuild gives you a clean home.
+`KEEP_HOME=no` attaches no second disk at all. `/home` is part of the OS disk,
+which `make destroy` deletes, so every rebuild starts with an empty home.
+`DATA_DISK_GB` does nothing in this mode.
 
-Going from `no` to `yes` happens on the next `make configure`, carrying your
-current home across. The other direction cannot be done on a running box, since
-it means pulling `/home` out from under every running process, so provisioning
-stops with an explanation instead: rebuild with `make destroy` then `make up`.
+Switching either way needs `make destroy` then `make up`. A disk cannot be added
+to or removed from a VM that already exists, and unmounting a live `/home` would
+pull it out from under every running process, so `make configure` stops with an
+explanation instead of half-applying the change. Note that `persist/data.qcow2`
+is left on the Mac when you switch to `no`: if you switch back to `yes` later,
+that old home comes back with it.
 
 UTM imports `persist/data.qcow2` into its own VM bundle, so `make destroy`
 copies the live disk back out before deleting the VM and the next `make up`
@@ -201,9 +206,6 @@ has imported. If it cannot find or copy the disk, `make destroy` stops without
 deleting anything; `PRESERVE_DATA=no make destroy` throws the disk away on
 purpose. Note that this copy only happens through `make destroy` -- deleting
 the VM in UTM's own window deletes the data disk with it.
-
-Worth confirming once on a new UTM version: `touch ~/proof.txt`, then
-`make destroy && make up`, and check the file is still there.
 
 ## Mullvad
 

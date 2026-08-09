@@ -32,11 +32,32 @@
     state: started
   when: attacker_clipboard | default('yes') | bool
 
-# --- Persistent disk --------------------------------------------------------
-# The second VirtIO disk (persist/data.qcow2), which survives make destroy.
-# attacker_keep_home true makes it /home so dotfiles, keys and tool state
-# survive a rebuild; false leaves it scratch at /data with ~/engagements
-# pointing at it.
+# --- Persistent /home -------------------------------------------------------
+# The second VirtIO disk (persist/data.qcow2) survives make destroy and carries
+# /home with it, so dotfiles, keys and tool state outlive a rebuild.
+# attacker_keep_home is the whole switch and it is all-or-nothing: false means
+# create-vm.sh never attached a disk, /home sits on the OS disk and every
+# rebuild starts clean. There is deliberately no middle ground where the disk
+# holds something smaller than the home directory.
+- name: Check whether /home is a mount of its own
+  ansible.builtin.command:
+    cmd: findmnt -no SOURCE /home
+  register: attacker_home_src
+  changed_when: false
+  failed_when: false
+
+# Unmounting /home would pull it out from under every running process and the
+# live SSH session, which is not something to do mid-play.
+- name: Refuse to demote a persistent /home while it is in use
+  ansible.builtin.fail:
+    msg: >-
+      KEEP_HOME is no, but /home is on the persistent disk. Switching back
+      cannot be done on a running box: rebuild with make destroy then make up
+      for a box with no persistent disk and a fresh /home.
+  when:
+    - not (attacker_keep_home | bool)
+    - (attacker_home_src.stdout | trim) | length > 0
+
 - name: Identify the data disk (the non-root VirtIO block device)
   ansible.builtin.shell:
     cmd: |
@@ -56,13 +77,17 @@
     executable: /bin/bash
   register: attacker_data_dev
   changed_when: false
+  when: attacker_keep_home | bool
 
 - name: Fail clearly if no data disk is present
   ansible.builtin.fail:
     msg: >-
-      No second VirtIO disk was found. The persistent disk is created by
-      scripts/create-vm.sh; rebuild with make destroy then make up.
-  when: (attacker_data_dev.stdout | trim) | length == 0
+      KEEP_HOME is yes but this box has no second VirtIO disk. The disk is
+      attached when the VM is created, so it cannot be added to one that
+      already exists: rebuild with make destroy then make up.
+  when:
+    - attacker_keep_home | bool
+    - (attacker_data_dev.stdout | default('') | trim) | length == 0
 
 - name: Make an ext4 filesystem on the data disk if it has none
   community.general.filesystem:
@@ -70,13 +95,7 @@
     dev: "{{ attacker_data_dev.stdout | trim }}"
     # never force: only formats a disk that has no filesystem yet, so existing
     # work is never wiped on a reconfigure.
-
-- name: Check whether /home already lives on the persistent disk
-  ansible.builtin.command:
-    cmd: findmnt -no SOURCE /home
-  register: attacker_home_src
-  changed_when: false
-  failed_when: false
+  when: attacker_keep_home | bool
 
 # Mounting a bare disk onto /home would bury ~/.ssh/authorized_keys and lock
 # everything out on the next connection. So fill the disk from the current
@@ -105,13 +124,7 @@
   changed_when: "'seeded' in attacker_home_seed.stdout"
   when:
     - attacker_keep_home | bool
-    - (attacker_home_src.stdout | trim) != (attacker_data_dev.stdout | trim)
-
-- name: Drop the scratch /data mount when the home is kept instead
-  ansible.posix.mount:
-    path: /data
-    state: absent
-  when: attacker_keep_home | bool
+    - (attacker_home_src.stdout | trim) != (attacker_data_dev.stdout | default('') | trim)
 
 # A new /home would hide the share mounted inside the old one and leave an
 # orphaned mount nothing can reach. The section below remounts it afterwards.
@@ -123,7 +136,7 @@
   failed_when: false
   when:
     - attacker_keep_home | bool
-    - (attacker_home_src.stdout | trim) != (attacker_data_dev.stdout | trim)
+    - (attacker_home_src.stdout | trim) != (attacker_data_dev.stdout | default('') | trim)
 
 - name: Unmount them before /home changes underneath
   ansible.posix.mount:
@@ -140,51 +153,34 @@
     state: mounted
   when: attacker_keep_home | bool
 
-- name: Drop the ~/engagements link when the home is kept instead
+# --- Leftovers from the old scratch layout ----------------------------------
+# KEEP_HOME=no used to mount the disk at /data and hang ~/engagements off it.
+# Nothing creates either any more, so clear them off boxes that still have them.
+# Only ever on a kept home: on a box still running the old scratch layout these
+# would unmount work that is in use.
+- name: Look for a leftover ~/engagements link
+  ansible.builtin.stat:
+    path: "/home/{{ ansible_user }}/engagements"
+  register: attacker_engagements
+  when: attacker_keep_home | bool
+
+# Removed only when it is still the symlink to /data that the old layout made.
+# A real directory of that name is the user's own and is left alone, because
+# state=absent on a directory would delete everything in it.
+- name: Remove the leftover ~/engagements link
   ansible.builtin.file:
     path: "/home/{{ ansible_user }}/engagements"
     state: absent
-  when: attacker_keep_home | bool
-
-# The other direction would pull /home out from under every running process
-# and the live SSH session, which is not something to do mid-play.
-- name: Refuse to demote a persistent /home while it is in use
-  ansible.builtin.fail:
-    msg: >-
-      KEEP_HOME is no, but /home is currently the persistent disk. Switching
-      back cannot be done safely on a running box: rebuild with make destroy
-      then make up, which gives a clean home and keeps the disk as /data.
   when:
-    - not (attacker_keep_home | bool)
-    - (attacker_home_src.stdout | trim) == (attacker_data_dev.stdout | trim)
+    - attacker_keep_home | bool
+    - attacker_engagements.stat.islnk | default(false)
+    - (attacker_engagements.stat.lnk_target | default('')) == '/data'
 
-- name: Mount the persistent disk at /data
+- name: Remove the leftover /data mount
   ansible.posix.mount:
     path: /data
-    src: "{{ attacker_data_dev.stdout | trim }}"
-    fstype: ext4
-    opts: "defaults,nofail"
-    state: mounted
-  when: not (attacker_keep_home | bool)
-
-- name: Own /data for the user
-  ansible.builtin.file:
-    path: /data
-    state: directory
-    owner: "{{ ansible_user }}"
-    group: "{{ attacker_user_group }}"
-    mode: "0755"
-  when: not (attacker_keep_home | bool)
-
-- name: Link ~/engagements to /data
-  ansible.builtin.file:
-    src: /data
-    dest: "/home/{{ ansible_user }}/engagements"
-    state: link
-    force: true
-    owner: "{{ ansible_user }}"
-    group: "{{ attacker_user_group }}"
-  when: not (attacker_keep_home | bool)
+    state: absent
+  when: attacker_keep_home | bool
 
 # --- The shared folder ------------------------------------------------------
 # Appears in the lab user's home under attacker_shared_name. VirtFS's 9p tag is

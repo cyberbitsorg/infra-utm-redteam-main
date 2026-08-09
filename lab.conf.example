@@ -38,10 +38,12 @@ MULLVAD="no"
 # curated (minimal) | headless | default | large. Bigger = slower first build.
 KALI_TOOLSET="default"
 
-# Second disk in persist/, survives 'make destroy'. Role can't change on a running box:
-#   yes  it is /home, so dotfiles/keys/history/tool state survive a rebuild
-#   no   scratch at /data with ~/engagements -> it; every rebuild gives a clean home
+# Keep /home across a rebuild, or not. Changing it needs 'make destroy' + 'make up':
+#   yes  /home is a second disk in persist/ that 'make destroy' keeps
+#   no   no second disk at all, so every rebuild starts with an empty home
 KEEP_HOME="yes"
+
+# Size of that second disk at first creation; never shrunk. Ignored with KEEP_HOME=no.
 DATA_DISK_GB=40
 
 # --- Virtual machine ---

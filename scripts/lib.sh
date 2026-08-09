@@ -112,7 +112,8 @@ data_disk_path() { echo "${PERSIST_DIR}/data.qcow2"; }
 shared_dir() { echo "${SHARED_DIR:-${HOME}/Sandbox}"; }
 shared_name() { basename "$(shared_dir)"; }
 
-# Whether the persistent disk becomes /home or stays scratch at /data.
+# Whether the box gets a persistent disk carrying /home. All or nothing: 'no'
+# means no second disk is attached at all, not a disk with a smaller job.
 keep_home() {
   case "${KEEP_HOME:-yes}" in
     yes|true|1) echo true ;;

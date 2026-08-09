@@ -6,7 +6,8 @@ attacker_toolset: default
 # Basename of SHARED_DIR, so the Mac and the guest agree on the folder name.
 attacker_shared_name: Sandbox
 
-# Persistent disk as /home (true) or scratch at /data (false).
+# true: /home is the second disk, which survives a rebuild. false: the box has
+# no second disk and /home goes with the OS disk. Nothing in between.
 attacker_keep_home: true
 
 attacker_packages_curated:
