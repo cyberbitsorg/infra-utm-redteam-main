@@ -10,9 +10,10 @@ persist/*
 generated/
 *.seed.iso
 
-# Ansible inventory generated from running VMs
+# Ansible inventory generated from running VMs, and the local galaxy cache
 ansible/inventory/hosts.generated.yaml
 !ansible/inventory/.gitkeep
+.ansible/
 
 # Secrets and local config
 lab.conf

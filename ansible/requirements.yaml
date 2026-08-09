@@ -1,10 +1,9 @@
 ---
-# Pinned to a major so a rebuild is reproducible and a breaking major bump
-# (renamed args, changed idempotence) can't land silently. Widen deliberately.
+# Pinned to a major so a breaking bump can't land silently. Widen deliberately.
 collections:
+  # community.general.timezone
   - name: community.general
     version: ">=13.0.0,<14.0.0"
-  - name: community.docker
-    version: ">=5.0.0,<6.0.0"
+  # ansible.posix.mount
   - name: ansible.posix
     version: ">=1.5.0,<3.0.0"

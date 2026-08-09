@@ -12,8 +12,7 @@ work="$(mktemp -d)"
 trap 'rm -rf "$work"' EXIT
 
 template="${CLOUDINIT_DIR}/kali.user-data.yaml"
-[[ -f "$template" ]] || template="${CLOUDINIT_DIR}/default.user-data.yaml"
-[[ -f "$template" ]] || die "No cloud-init template found in ${CLOUDINIT_DIR}"
+[[ -f "$template" ]] || die "Cloud-init template missing: ${template}"
 
 pubkey="$(cat "$LAB_SSH_KEY")"
 hostname="$(vm_name "$short")"
@@ -31,8 +30,8 @@ instance-id: ${hostname}
 local-hostname: ${hostname}
 EOF
 
-# network-config v2: single NIC via DHCP, matched by MAC (works for both nat
-# and bridged NET_MODE; names like enp0sX do not matter).
+# network-config v2: single NIC on DHCP, matched by MAC so the interface name
+# does not matter, which covers both NET_MODE values.
 cat > "${work}/network-config" <<EOF
 version: 2
 ethernets:
@@ -43,8 +42,7 @@ ethernets:
 EOF
 
 seed="${GEN_DIR}/${hostname}.seed.iso"
-# hdiutil makehybrid refuses to overwrite an existing file, so make re-runs
-# idempotent by clearing a stale seed first (also harmless for xorriso/mkisofs).
+# hdiutil makehybrid refuses to overwrite, so clear a stale seed first.
 rm -f "$seed"
 
 # Volume label MUST be "cidata" for the NoCloud datasource to be picked up.

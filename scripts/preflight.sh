@@ -42,9 +42,12 @@ case "$(shared_name)" in
   *[[:space:]]*|"") die "SHARED_DIR must end in a folder name without spaces (got: $(shared_dir))" ;;
 esac
 
-keep_home >/dev/null            # dies on an invalid value
-display_resolution >/dev/null   # dies on an invalid value
-desktop_compositing >/dev/null  # dies on an invalid value
+# Each dies on an invalid value, so a typo fails here and not halfway through
+# an Ansible run.
+keep_home >/dev/null
+display_resolution >/dev/null
+desktop_compositing >/dev/null
+mullvad_enabled >/dev/null
 
 log "Ensuring persist/ and the share folder exist"
 mkdir -p "$PERSIST_DIR" "$(shared_dir)"

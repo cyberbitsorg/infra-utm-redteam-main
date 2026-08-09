@@ -20,18 +20,15 @@ run_ansible() {
   log "Installing Ansible Galaxy requirements"
   ansible-galaxy collection install -r "${ANSIBLE_DIR}/requirements.yaml" >/dev/null
   log "Running Ansible playbook"
-  # The console password goes through a 0600 file, not -e on the command line,
-  # so it never appears in the host process list (ps auxww). Single-quoted YAML
-  # scalar with '' escaping keeps any character in the password literal. The
-  # non-secret toolset/gui stay as plain -e. Bake the path into the trap so it
-  # is cleaned up even if ansible-playbook fails under set -e.
+  # The console password goes through a 0600 file rather than -e, so it never
+  # shows up in the host process list. The non-secret vars stay plain -e.
   local vars_file pw esc
   vars_file="$(mktemp)"
   chmod 600 "$vars_file"
   trap "rm -f '${vars_file}'" EXIT
   pw="${ATTACKER_PASSWORD:-redteam}"
-  # Unquoted assignment so \' is a literal ' in the pattern/replacement: double
-  # each ' to '' the way a single-quoted YAML scalar escapes a quote.
+  # Double every ' the way a single-quoted YAML scalar escapes one, so any
+  # character in the password stays literal. Unquoted so \' is a literal quote.
   esc=${pw//\'/\'\'}
   printf "attacker_password: '%s'\n" "$esc" > "$vars_file"
   ( cd "$REPO_ROOT" && ansible-playbook "${ANSIBLE_DIR}/playbook.yaml" \
@@ -74,6 +71,13 @@ if [[ "$vmmode" == "bridged" ]]; then
     [[ $(date +%s) -lt $deadline ]] || die "Timed out getting ${name} LAN IP. Is DHCP available on the bridged network?"
     sleep 5
   done
+  # 10.0.2.0/24 is QEMU's SLIRP subnet, so a bridged run that lands there is
+  # really still on the emulated NIC: NET_MODE was flipped on a VM that already
+  # exists, and reconcile does not rewire a NIC. Without this the run would sit
+  # out the full SSH timeout on an address nothing can reach.
+  case "$host" in
+    10.0.2.*) die "${name} reports ${host}, a QEMU SLIRP address, so its NIC is still emulated. NET_MODE cannot be changed on an existing VM: run 'make destroy' then 'make up', or set NET_MODE=nat again." ;;
+  esac
   port=22
   ok "${name} at ${host}:22"
 else
