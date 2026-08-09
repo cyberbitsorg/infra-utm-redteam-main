@@ -32,18 +32,18 @@
         fi
       done
     executable: /bin/bash
-  register: desktop_group_removal
-  changed_when: "'Removing user' in desktop_group_removal.stdout"
+  register: attacker_group_removal
+  changed_when: "'Removing user' in attacker_group_removal.stdout"
 
 - name: Read the current default systemd target
   ansible.builtin.command: systemctl get-default
-  register: desktop_current_target
+  register: attacker_current_target
   changed_when: false
 
 - name: Boot to the graphical target by default
   ansible.builtin.command: systemctl set-default graphical.target
   changed_when: true
-  when: desktop_current_target.stdout | trim != 'graphical.target'
+  when: attacker_current_target.stdout | trim != 'graphical.target'
 
 - name: Enable and start LightDM
   ansible.builtin.systemd:
@@ -52,17 +52,14 @@
     state: started
 
 # --- Making a CPU-rendered desktop usable -----------------------------------
-# UTM gives this box no working GPU acceleration (see VM_DISPLAY in
-# scripts/lib.sh), so Xorg refuses glamor and paints every pixel on the CPU.
-# What decides whether the desktop is usable is therefore how many pixels there
-# are and how often they are all repainted, which is what these two settings
-# control.
+# There is no working GPU acceleration here (see VM_DISPLAY in scripts/lib.sh),
+# so Xorg paints every pixel on the CPU and the pixel count and repaint rate are
+# what decide whether the desktop is usable.
 
-# With DISPLAY_RESOLUTION pinned, UTM no longer resizes the guest, so the guest
-# has to pick the mode itself. A Monitor section is the declarative way to do
-# it: unlike an xrandr call from a session hook it also covers the greeter, and
-# it survives a reboot. An unknown mode is ignored by Xorg rather than fatal,
-# and the monitor's own preferred mode wins instead.
+# A pinned DISPLAY_RESOLUTION means UTM no longer resizes the guest, so the
+# guest picks the mode itself. A Monitor section covers the greeter too, unlike
+# an xrandr call from a session hook, and survives a reboot. Xorg ignores an
+# unknown mode rather than failing on it.
 - name: Find the virtual monitor's output name
   ansible.builtin.shell:
     cmd: |
@@ -74,7 +71,7 @@
       done
   args:
     executable: /bin/bash
-  register: desktop_drm_output
+  register: attacker_drm_output
   changed_when: false
 
 - name: Ensure the Xorg drop-in directory exists
@@ -94,13 +91,13 @@
     content: |
       # Managed by Ansible (DISPLAY_RESOLUTION in lab.conf). Do not edit.
       Section "Monitor"
-          Identifier "{{ desktop_drm_output.stdout | trim }}"
+          Identifier "{{ attacker_drm_output.stdout | trim }}"
           Option "PreferredMode" "{{ attacker_display_resolution }}"
       EndSection
   when:
     - (attacker_display_resolution | default('') | length) > 0
-    - (desktop_drm_output.stdout | trim | length) > 0
-  register: desktop_resolution_conf
+    - (attacker_drm_output.stdout | trim | length) > 0
+  register: attacker_resolution_conf
 
 # Going back to DISPLAY_RESOLUTION=dynamic has to take the file away again, or
 # the guest would stay pinned while UTM tries to resize it.
@@ -109,12 +106,11 @@
     path: /etc/X11/xorg.conf.d/10-resolution.conf
     state: absent
   when: (attacker_display_resolution | default('') | length) == 0
-  register: desktop_resolution_dropped
+  register: attacker_resolution_dropped
 
-# Compositing lives in the lab user's own xfconf, so it has to be set as that
-# user. If a desktop session is live its xfconfd owns the file and would write
-# the old value back on logout, so borrow that session's bus instead of
-# starting a private one; then the change also takes effect immediately.
+# Compositing lives in the lab user's own xfconf. A live session's xfconfd owns
+# that file and would write the old value back on logout, so borrow its bus
+# instead of starting a private one; the change then also applies immediately.
 - name: Set XFCE compositing to DESKTOP_COMPOSITING
   become: true
   become_user: "{{ ansible_user }}"
@@ -133,18 +129,18 @@
       run xfconf-query -c xfwm4 -p /general/use_compositing --create -t bool -s "$want"
       echo changed
     executable: /bin/bash
-  register: desktop_compositing
-  # Exact match, not "in": "unchanged" contains "changed" as a substring, so a
-  # membership test here reports every single run as a change.
-  changed_when: desktop_compositing.stdout | trim == 'changed'
+  register: attacker_compositing_result
+  # Exact match, not "in": "unchanged" contains "changed", so a membership test
+  # would report every run as a change.
+  changed_when: attacker_compositing_result.stdout | trim == 'changed'
 
-# A resolution change only reaches Xorg when Xorg restarts, and restarting
-# LightDM throws away whatever is open. So do it only when nobody is logged in
-# (the greeter alone is fine) and say so plainly when someone is.
+# A resolution change only reaches Xorg on restart, and restarting LightDM
+# throws away whatever is open. So only when nobody is logged in; the greeter
+# alone is fine.
 - name: Check whether a desktop session is in use
   ansible.builtin.command:
     cmd: pgrep -x xfce4-session
-  register: desktop_session_live
+  register: attacker_session_live
   changed_when: false
   failed_when: false
 
@@ -153,8 +149,8 @@
     name: lightdm
     state: restarted
   when:
-    - (desktop_resolution_conf.changed | default(false)) or (desktop_resolution_dropped.changed | default(false))
-    - desktop_session_live.rc != 0
+    - (attacker_resolution_conf.changed | default(false)) or (attacker_resolution_dropped.changed | default(false))
+    - attacker_session_live.rc != 0
 
 - name: Say that the resolution needs a log out to take effect
   ansible.builtin.debug:
@@ -162,5 +158,5 @@
       The desktop resolution changed, but someone is logged into XFCE, so
       LightDM was left alone. Log out (or reboot) to pick it up.
   when:
-    - (desktop_resolution_conf.changed | default(false)) or (desktop_resolution_dropped.changed | default(false))
-    - desktop_session_live.rc == 0
+    - (attacker_resolution_conf.changed | default(false)) or (attacker_resolution_dropped.changed | default(false))
+    - attacker_session_live.rc == 0

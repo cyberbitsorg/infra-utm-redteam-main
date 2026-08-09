@@ -4,3 +4,12 @@
     daemon_reload: true
     name: getty@tty1.service
     state: restarted
+
+# Applies the cidata rule without a reboot.
+- name: Reload udev rules
+  ansible.builtin.command:
+    cmd: "{{ item }}"
+  loop:
+    - udevadm control --reload
+    - udevadm trigger --subsystem-match=block --action=change
+  changed_when: true

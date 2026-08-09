@@ -1,16 +1,12 @@
 ---
-# Host integration: SPICE clipboard, the persistent disk, and the live shared
-# folder. No anonymity invariant here, so these are all fine.
-#
-# Order matters. The persistent disk can become /home, and mounting /home would
-# hide anything already mounted inside it, so the disk is settled first and the
-# shared folder is mounted into the home that is going to stick around.
+# SPICE clipboard, the persistent disk and the shared folder. Order matters:
+# the persistent disk can become /home, which would hide anything mounted
+# inside it, so the disk is settled before the shared folder is mounted.
 
 # --- Lab user identity ------------------------------------------------------
-# cloud-init deliberately creates the user with no_user_group, so no group is
-# named after LAB_USER and the primary group is useradd's default (users).
-# Resolve the real one rather than assuming user == group, or every owner/group
-# task below dies with "chgrp failed: failed to look up group <user>".
+# cloud-init creates the user with no_user_group, so there is no group named
+# after LAB_USER. Resolve the real primary group instead of assuming
+# user == group, or every owner/group task below fails on "chgrp failed".
 - name: Look up the lab user's primary group
   ansible.builtin.getent:
     database: passwd
@@ -38,11 +34,9 @@
 
 # --- Persistent disk --------------------------------------------------------
 # The second VirtIO disk (persist/data.qcow2), which survives make destroy.
-# attacker_keep_home decides what it is for:
-#   true  : it becomes /home, so dotfiles, keys, shell history and tool state
-#           all survive a rebuild.
-#   false : it is scratch space at /data with ~/engagements pointing at it, and
-#           every rebuild gives a clean home.
+# attacker_keep_home true makes it /home so dotfiles, keys and tool state
+# survive a rebuild; false leaves it scratch at /data with ~/engagements
+# pointing at it.
 - name: Identify the data disk (the non-root VirtIO block device)
   ansible.builtin.shell:
     cmd: |
@@ -60,7 +54,7 @@
       exit 0
   args:
     executable: /bin/bash
-  register: data_dev
+  register: attacker_data_dev
   changed_when: false
 
 - name: Fail clearly if no data disk is present
@@ -68,12 +62,12 @@
     msg: >-
       No second VirtIO disk was found. The persistent disk is created by
       scripts/create-vm.sh; rebuild with make destroy then make up.
-  when: (data_dev.stdout | trim) | length == 0
+  when: (attacker_data_dev.stdout | trim) | length == 0
 
 - name: Make an ext4 filesystem on the data disk if it has none
   ansible.builtin.filesystem:
     fstype: ext4
-    dev: "{{ data_dev.stdout | trim }}"
+    dev: "{{ attacker_data_dev.stdout | trim }}"
     # never force: only formats a disk that has no filesystem yet, so existing
     # work is never wiped on a reconfigure.
 
@@ -84,17 +78,15 @@
   changed_when: false
   failed_when: false
 
-# Mounting a bare disk straight onto /home would bury the cloud-init user's home
-# under an empty directory, taking ~/.ssh/authorized_keys with it and locking
-# everything out of the box on the very next connection. So the disk is filled
-# from the current /home first, mounted out of the way, and the copy is only
-# trusted once the lab user's .ssh is actually on it.
+# Mounting a bare disk onto /home would bury ~/.ssh/authorized_keys and lock
+# everything out on the next connection. So fill the disk from the current
+# /home first, and only trust the copy once the lab user's .ssh is on it.
 - name: Seed the persistent disk from the current /home
   ansible.builtin.shell:
     cmd: |
       set -euo pipefail
       mkdir -p /mnt/newhome
-      mount "{{ data_dev.stdout | trim }}" /mnt/newhome
+      mount "{{ attacker_data_dev.stdout | trim }}" /mnt/newhome
       trap 'umount /mnt/newhome' EXIT
       if [ ! -d "/mnt/newhome/{{ ansible_user }}" ]; then
         # --one-file-system is load-bearing: the shared folder is mounted inside
@@ -113,7 +105,7 @@
   changed_when: "'seeded' in attacker_home_seed.stdout"
   when:
     - attacker_keep_home | bool
-    - (attacker_home_src.stdout | trim) != (data_dev.stdout | trim)
+    - (attacker_home_src.stdout | trim) != (attacker_data_dev.stdout | trim)
 
 - name: Drop the scratch /data mount when the home is kept instead
   ansible.posix.mount:
@@ -121,9 +113,8 @@
     state: absent
   when: attacker_keep_home | bool
 
-# A new /home would hide the shared folder mounted inside the old one, leaving
-# an orphaned mount underneath that nothing can reach. Take it down first; the
-# shared-folder section below rebuilds it on the home that is going to stay.
+# A new /home would hide the share mounted inside the old one and leave an
+# orphaned mount nothing can reach. The section below remounts it afterwards.
 - name: Find shared-folder mounts that a new /home would hide
   ansible.builtin.command:
     cmd: findmnt -rno TARGET --source /mnt/shared
@@ -132,7 +123,7 @@
   failed_when: false
   when:
     - attacker_keep_home | bool
-    - (attacker_home_src.stdout | trim) != (data_dev.stdout | trim)
+    - (attacker_home_src.stdout | trim) != (attacker_data_dev.stdout | trim)
 
 - name: Unmount them before /home changes underneath
   ansible.posix.mount:
@@ -143,7 +134,7 @@
 - name: Mount the persistent disk at /home
   ansible.posix.mount:
     path: /home
-    src: "{{ data_dev.stdout | trim }}"
+    src: "{{ attacker_data_dev.stdout | trim }}"
     fstype: ext4
     opts: "defaults,nofail"
     state: mounted
@@ -155,7 +146,7 @@
     state: absent
   when: attacker_keep_home | bool
 
-# Going the other way means pulling /home out from under every running process
+# The other direction would pull /home out from under every running process
 # and the live SSH session, which is not something to do mid-play.
 - name: Refuse to demote a persistent /home while it is in use
   ansible.builtin.fail:
@@ -165,12 +156,12 @@
       then make up, which gives a clean home and keeps the disk as /data.
   when:
     - not (attacker_keep_home | bool)
-    - (attacker_home_src.stdout | trim) == (data_dev.stdout | trim)
+    - (attacker_home_src.stdout | trim) == (attacker_data_dev.stdout | trim)
 
 - name: Mount the persistent disk at /data
   ansible.posix.mount:
     path: /data
-    src: "{{ data_dev.stdout | trim }}"
+    src: "{{ attacker_data_dev.stdout | trim }}"
     fstype: ext4
     opts: "defaults,nofail"
     state: mounted
@@ -196,19 +187,16 @@
   when: not (attacker_keep_home | bool)
 
 # --- The shared folder ------------------------------------------------------
-# The host folder (SHARED_DIR) appears in the lab user's home under the same
-# name, which up.sh passes as attacker_shared_name. UTM serves it over VirtFS,
-# whose 9p mount tag is always "share" no matter what either side calls the
-# folder, so src below is that tag and not a path.
+# SHARED_DIR appears in the lab user's home under the same name (up.sh passes
+# it as attacker_shared_name). VirtFS's 9p mount tag is always "share" whatever
+# either side calls the folder, so src below is that tag and not a path.
 #
-# UTM shares with security_model=mapped-xattr: the guest's ownership lives in
-# user.virtfs.* xattrs on the host file, and anything created on the Mac has no
-# such xattr, so it falls back to the raw macOS uid (501) against the guest's
-# 1000, leaving it read-only. So the share is mounted privately at /mnt/shared
-# and bindfs re-presents it in the home directory with every file forced to the
-# lab user. That makes the whole tree writable whichever side created a file,
-# and never touches ownership on the Mac. Both mounts are nofail: a share that
-# was never pointed at a folder in UTM leaves an empty directory, not a failure.
+# UTM shares with security_model=mapped-xattr, so guest ownership lives in
+# user.virtfs.* xattrs and anything created on the Mac has none: it falls back
+# to the raw macOS uid and is read-only in the guest. Hence the private mount at
+# /mnt/shared plus bindfs re-presenting it as the lab user's own, which never
+# touches ownership on the Mac. Both mounts are nofail, so a share that was
+# never pointed at a folder in UTM leaves an empty directory, not a failure.
 - name: Install bindfs for the share ownership mapping
   ansible.builtin.apt:
     name: bindfs
@@ -216,10 +204,9 @@
     update_cache: true
     cache_valid_time: 3600
 
-# Both mount points are created only while nothing is mounted on them. Creating
-# them unconditionally would chown and chmod whatever is mounted there instead,
-# which on /mnt/shared means rewriting the ownership xattrs of the share root
-# on the Mac on every single configure run.
+# Only created while nothing is mounted on them: doing it unconditionally would
+# chown whatever is mounted there instead, which for /mnt/shared means
+# rewriting the share root's xattrs on the Mac on every configure run.
 - name: Check what is mounted at the two share paths
   ansible.builtin.command:
     cmd: "findmnt -no FSTYPE {{ item }}"
@@ -265,7 +252,6 @@
     fstype: 9p
     opts: "trans=virtio,version=9p2000.L,rw,_netdev,nofail,msize=104857600"
     state: mounted
-  register: share_mount
   failed_when: false
 
 - name: Re-present the share through bindfs as the lab user's own
@@ -274,14 +260,13 @@
     src: /mnt/shared
     fstype: fuse.bindfs
     # One line on purpose: a folded scalar would put spaces in the option list.
-    opts: "force-user={{ ansible_user }},force-group={{ attacker_user_group }},create-for-user={{ ansible_user }},create-for-group={{ attacker_user_group }},chown-ignore,chgrp-ignore,nofail,x-systemd.requires-mounts-for=/mnt/shared"
+    opts: "force-user={{ ansible_user }},force-group={{ attacker_user_group }},create-for-user={{ ansible_user }},create-for-group={{ attacker_user_group }},chown-ignore,chgrp-ignore,nofail,x-systemd.requires-mounts-for=/mnt/shared"  # noqa: yaml[line-length]
     state: mounted
   failed_when: false
 
-# Renaming SHARED_DIR moves the share to a new name in the home directory, and
-# the mount and fstab line under the old name would otherwise sit there forever
-# pointing at the same share. Anything bound to /mnt/shared that is not the
-# current name is such a leftover.
+# After a SHARED_DIR rename the mount and fstab line under the old name would
+# sit there forever. Anything bound to /mnt/shared under a different name is
+# such a leftover.
 - name: Find share mounts left behind by a rename
   ansible.builtin.command:
     cmd: findmnt -rno TARGET --source /mnt/shared
@@ -298,9 +283,9 @@
        | difference(['/home/' ~ ansible_user ~ '/' ~ attacker_shared_name]) }}
 
 # --- Cloud-init seed disk ---------------------------------------------------
-# The NoCloud seed (label "cidata") stays attached for the VM's whole life, so
-# udisks2 advertises it as a removable volume and the desktop shows an icon for
-# it. Nothing should ever mount it by hand, so hide it from udisks entirely.
+# The seed stays attached for the VM's whole life, so udisks2 advertises it as
+# a removable volume and the desktop shows an icon for it. Nothing should ever
+# mount it by hand.
 - name: Hide the cloud-init seed disk from the desktop
   ansible.builtin.copy:
     dest: /etc/udev/rules.d/99-hide-cidata.rules
@@ -309,13 +294,4 @@
     mode: "0644"
     content: |
       SUBSYSTEM=="block", ENV{ID_FS_LABEL}=="cidata", ENV{UDISKS_IGNORE}="1"
-  register: attacker_cidata_rule
-
-- name: Apply the seed-disk rule without a reboot
-  ansible.builtin.command:
-    cmd: "{{ item }}"
-  loop:
-    - udevadm control --reload
-    - udevadm trigger --subsystem-match=block --action=change
-  when: attacker_cidata_rule.changed
-  changed_when: true
+  notify: Reload udev rules
