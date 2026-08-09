@@ -77,20 +77,15 @@
     state: started
   when: attacker_mullvad | bool
 
-# Mullvad's kill switch drops everything outside the tunnel, and that includes
-# the SSH session this box is managed over: connect once and 'make ssh' and
-# 'make configure' both stop answering -- including the configure run that would
-# turn Mullvad off again, leaving the serial console as the only way back in.
-# Allowing local network sharing lets in- and outbound traffic on unroutable
-# ranges through, which covers the SLIRP subnet the box sits on. Internet
-# traffic still goes through the tunnel.
+# The kill switch drops everything outside the tunnel, including the SSH session
+# this box is managed over. Allowing LAN sharing keeps unroutable ranges (the
+# SLIRP subnet) reachable while internet traffic stays in the tunnel.
 - name: Read the Mullvad local network sharing setting
   ansible.builtin.command:
     cmd: mullvad lan get
   register: attacker_mullvad_lan
   changed_when: false
-  # The daemon has to be up to answer, which it may not be in the second or two
-  # after the package installed it.
+  # The daemon may not be up in the second or two after the package installed it.
   retries: 5
   delay: 3
   until: attacker_mullvad_lan.rc == 0

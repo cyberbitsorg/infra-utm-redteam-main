@@ -1,12 +1,8 @@
 ---
-# Order is load-bearing: the console kernel and its reboot come before the
-# desktop, whose greeter needs that kernel's framebuffer; Mullvad comes after
-# the desktop it puts a browser on; the toolset is last because it is slowest.
-#
-# Every include repeats its tags under "apply" on purpose. A tag on a dynamic
-# include_tasks only decides whether the include runs and is not inherited by
-# the tasks inside it, so without "apply" a run like "--tags desktop" includes
-# desktop.yaml, matches none of its tasks and quietly does nothing.
+# Order is load-bearing: console kernel (+reboot) before the desktop whose greeter
+# needs its framebuffer; Mullvad after the desktop; the toolset last, it is slowest.
+# Each include repeats its tags under "apply" so "--tags desktop" runs the tasks
+# inside (a tag on include_tasks only gates the include, it is not inherited).
 - name: Console kernel + console security
   ansible.builtin.include_tasks:
     file: console-kernel.yaml

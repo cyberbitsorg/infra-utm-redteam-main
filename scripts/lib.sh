@@ -60,17 +60,13 @@ base_image() { echo "${IMAGES_DIR}/${KALI_IMG_FILE}"; }
 VM_MAC="52:54:00:AA:00:01"
 HOST_SSH_PORT=2400
 
-# The only UTM display device that produces a picture here, so not a lab.conf
-# knob. Both accelerated devices ("virtio-gpu-gl-pci", "virtio-ramfb-gl") leave
-# the window black on UTM 4.7.5: glamor initialises against virgl and Xorg logs
-# no error, yet nothing reaches the framebuffer. The cost is that Xorg refuses
-# glamor and renders on the CPU, which the desktop tuning in the attacker role
-# is there to make survivable.
+# The only UTM display that shows a picture here (not a lab.conf knob). Both GL
+# devices come up black on UTM 4.7.5, so Xorg renders on the CPU; the attacker
+# role's desktop tuning is there to make that survivable.
 VM_DISPLAY="virtio-gpu-pci"
 
-# "dynamic" lets the guest desktop follow the UTM window; a WxH pins the guest
-# and lets UTM scale instead. On a CPU-rendered display that is the difference
-# between a free resize and a frozen desktop, so a typo must fail, not default.
+# "dynamic" follows the UTM window; a WxH pins the guest and lets UTM scale. On a
+# CPU-rendered display that is a free resize vs a frozen desktop, so a typo fails.
 display_dynamic() {
   case "${DISPLAY_RESOLUTION:-1920x1080}" in
     dynamic) echo true ;;
@@ -164,11 +160,9 @@ vm_exists() {
   "$UTMCTL" list 2>/dev/null | grep -q " ${1}\$"
 }
 
-# Stop a VM and wait for exactly "stopped", not merely "not started": utmctl
-# stop asks the guest to shut down and passes through "stopping" first, so a
-# caller that reconfigures the VM straight after would race a mid-shutdown UTM.
-# An empty status means the VM is gone, which returns success immediately.
-# Returns 1 on timeout and leaves it to the caller to decide if that is fatal.
+# Stop a VM and wait for "stopped", not just "not started": utmctl stop passes
+# through "stopping" first, so reconfiguring right after would race a mid-shutdown
+# UTM. Empty status = already gone (success). Returns 1 on timeout.
 # Usage: stop_vm_and_wait <name> [timeout_seconds, default 60]
 stop_vm_and_wait() {
   local name="${1:?vm name required}" timeout="${2:-60}" waited=0 status

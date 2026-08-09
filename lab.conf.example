@@ -1,102 +1,51 @@
-# infra-utm-redteam-main configuration
-# Copy to lab.conf and adjust. lab.conf is gitignored.
+# infra-utm-redteam-main config. Copy to lab.conf (gitignored) and adjust.
 
-# --- Identity ---------------------------------------------------------------
-# The UTM VM is named <LAB_PREFIX>-<VM_NAME>.
-LAB_PREFIX="redteam"
+# --- Identity ---
+LAB_PREFIX="redteam"                               # UTM VM is <LAB_PREFIX>-<VM_NAME>
+LAB_USER="redteam"                                 # created by cloud-init; Ansible connects as this
+LAB_SSH_KEY="${HOME}/.ssh/id_ed25519_redteam.pub"  # preflight generates one if missing
 
-# User created inside the VM by cloud-init; Ansible connects as this user.
-LAB_USER="redteam"
+# --- Console and desktop ---
+ATTACKER_PASSWORD="redteam"   # console + LightDM only; SSH stays key-only
+ATTACKER_GUI="xfce"           # xfce | none
 
-# Public SSH key injected into the VM. preflight.sh generates one if missing.
-LAB_SSH_KEY="${HOME}/.ssh/id_ed25519_redteam.pub"
-
-# --- Console and desktop ----------------------------------------------------
-# Password for the lab user on the console and the LightDM greeter. SSH stays
-# key-only regardless.
-ATTACKER_PASSWORD="redteam"
-
-# Graphical desktop in UTM's window: 'xfce' or 'none'.
-ATTACKER_GUI="xfce"
-
-# Desktop resolution. UTM's GPU-accelerated displays produce no picture here
-# (see VM_DISPLAY in scripts/lib.sh), so the guest renders on the CPU and the
-# pixel count decides whether the desktop stays usable.
-#   <width>x<height> : pin the guest and let UTM scale into its window, so a
-#                      resize costs the guest nothing. Pick a mode the virtual
-#                      monitor offers (1920x1080, 1680x1050, 1600x1200,
-#                      1440x900, 1280x1024, 1024x768); an unknown one is
-#                      ignored in favour of the monitor's preferred mode.
-#   dynamic          : let the desktop follow the UTM window. Every resize step
-#                      becomes a mode change, which at Retina sizes is what
-#                      locks the display up for minutes on end.
+# Guest renders on the CPU (see VM_DISPLAY in lib.sh), so pixel count decides smoothness.
+#   <WxH>   pinned, UTM scales; use a mode the monitor offers
+#           (1920x1080, 1680x1050, 1600x1200, 1440x900, 1280x1024, 1024x768)
+#   dynamic follow the window; every resize is a mode change, locks up at Retina sizes
 DISPLAY_RESOLUTION="1920x1080"
 
-# XFCE drop shadows, transparency and fades: 'yes' or 'no'. Each is a
-# full-screen CPU redraw here, so 'no' keeps the desktop responsive.
-DESKTOP_COMPOSITING="no"
+DESKTOP_COMPOSITING="no"      # XFCE shadows/fades are full-screen CPU redraws; 'no' stays responsive
+CLIPBOARD="yes"               # SPICE clipboard sharing with macOS
 
-# Share the clipboard between macOS and the desktop (SPICE): 'yes' or 'no'.
-CLIPBOARD="yes"
-
-# Host folder shared live into the guest, mounted under the same name in the
-# lab user's home. Rename it here and both sides follow. Kept outside the repo
-# so engagement files never land in a git working tree. It has to be pointed at
-# once in UTM's VM settings; see the README. No spaces in the folder name (it
-# becomes an fstab entry).
+# Host folder shared live into the guest under the same name. Outside the repo so engagement
+# files never hit a git tree; no spaces (fstab entry). Point UTM at it once, see README.
 SHARED_DIR="${HOME}/Sandbox"
 
-# --- Mullvad ----------------------------------------------------------------
-# Install the Mullvad VPN app and Mullvad Browser: 'yes' or 'no'. Neither is in
-# Kali, so this adds Mullvad's own signed apt repository and both stay current
-# with the box's normal apt upgrades. The browser needs ATTACKER_GUI to be a
-# desktop; the VPN also works headless through the 'mullvad' CLI. Nothing is
-# logged in for you: run 'mullvad account login <number>' on the box.
-#
-# Provisioning turns on Mullvad's local network sharing, because its kill switch
-# otherwise drops the SSH session this box is managed over the moment you
-# connect. See the README.
-#
-# On arm64 the browser is Mullvad Browser *alpha* -- the stable one is amd64
-# only, because it comes from Tor Browser, which has no stable Linux aarch64
-# release.
-#
-# 'no' purges both packages and removes the repository again, which also drops
-# /etc/mullvad-vpn and with it the logged-in account.
-MULLVAD="no"
+# Mullvad VPN + Browser from Mullvad's signed apt repo. VPN works headless via the 'mullvad'
+# CLI; browser needs a desktop and is the arm64 alpha build. Log in with 'mullvad account
+# login <number>'. 'no' purges both and drops the account. Provisioning enables LAN sharing
+# so the kill switch can't drop your SSH session; see README.
+MULLVAD="no"                  # yes | no
 
-# --- Toolset ----------------------------------------------------------------
-# Which Kali toolset to install. Bigger = slower first 'make up'.
-#   curated  : small headless subset (nmap, hydra, sqlmap, ffuf, ...)
-#   headless : kali-linux-headless
-#   default  : kali-linux-default (the standard installer toolset)
-#   large    : kali-linux-large
+# curated (nmap, hydra, sqlmap, ffuf, ...) | headless | default | large. Bigger = slower first build.
 KALI_TOOLSET="default"
 
-# --- Persistence ------------------------------------------------------------
-# A second disk in persist/ that survives 'make destroy' and is re-attached on
-# the next 'make up'. KEEP_HOME decides what it is for:
-#   yes : the disk is /home, so dotfiles, SSH keys, shell history and tool state
-#         survive a rebuild. You never get a clean home, so a broken config
-#         sticks around just as well as a good one.
-#   no  : the disk is scratch at /data with ~/engagements pointing at it, and
-#         every rebuild gives a clean home.
-# Going from yes to no cannot be done on a running box; rebuild instead.
+# Second disk in persist/, survives 'make destroy'. Role can't change on a running box:
+#   yes  it is /home, so dotfiles/keys/history/tool state survive a rebuild
+#   no   scratch at /data with ~/engagements -> it; every rebuild gives a clean home
 KEEP_HOME="yes"
+DATA_DISK_GB=40               # size at first creation, GB; never shrunk
 
-# Size of the persistent disk at first creation, in GB. Never shrunk.
-DATA_DISK_GB=40
-
-# --- Virtual machine --------------------------------------------------------
+# --- Virtual machine ---
 VM_NAME="kali"
 VM_CPU=4
 VM_RAM=8192
 VM_DISK_GB=80
 
-# --- Base image (ARM64 / aarch64) -------------------------------------------
-# Kali genericcloud, from the per-release directory (never current/, which 404s
-# the moment Kali cuts a release). Bump KALI_VERSION to any release listed at
-# https://kali.download/cloud-images/.
+# --- Base image (ARM64) ---
+# Kali genericcloud, per-release dir (never current/, which 404s on each release).
+# Bump to any release at https://kali.download/cloud-images/.
 KALI_VERSION="2026.2"
 KALI_IMG_URL="https://kali.download/cloud-images/kali-${KALI_VERSION}/kali-linux-${KALI_VERSION}-cloud-genericcloud-arm64.tar.xz"
 KALI_SHA_URL="https://kali.download/cloud-images/kali-${KALI_VERSION}/SHA256SUMS"

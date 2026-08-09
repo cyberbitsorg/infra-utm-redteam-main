@@ -1,13 +1,8 @@
--- Read or change the CPU/RAM/display of an EXISTING UTM VM.
--- Usage: vm-config.applescript get <name>
---          -> prints "<cpu> <ram-mib> <display> <dynamic-resolution>"
---        vm-config.applescript set <name> <cpu> <ram-mib> <display> <dynres>
---          -> prints "ok"  (dynres is "true" or "false")
---        vm-config.applescript datadisk <name>  -> prints the source path
---        of the 3rd drive (the data disk), or "" if fewer than 3 drives
---
--- UTM only allows `update configuration` on a stopped VM; create-vm.sh stops it
--- first. See create-vm.applescript for the note on property names.
+-- Read or change the CPU/RAM/display of an EXISTING UTM VM (stopped only;
+-- create-vm.sh stops it first). Property-name note: see create-vm.applescript.
+--   get <name>       -> "<cpu> <ram-mib> <display> <dynres>"
+--   set <name> <cpu> <ram-mib> <display> <dynres>  -> "ok"  (dynres true|false)
+--   datadisk <name>  -> source path of the 3rd drive (data disk), or ""
 on run argv
 	set op to item 1 of argv
 	set vmName to item 2 of argv

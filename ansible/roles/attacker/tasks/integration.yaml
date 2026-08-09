@@ -187,16 +187,11 @@
   when: not (attacker_keep_home | bool)
 
 # --- The shared folder ------------------------------------------------------
-# SHARED_DIR appears in the lab user's home under the same name (up.sh passes
-# it as attacker_shared_name). VirtFS's 9p mount tag is always "share" whatever
-# either side calls the folder, so src below is that tag and not a path.
-#
-# UTM shares with security_model=mapped-xattr, so guest ownership lives in
-# user.virtfs.* xattrs and anything created on the Mac has none: it falls back
-# to the raw macOS uid and is read-only in the guest. Hence the private mount at
-# /mnt/shared plus bindfs re-presenting it as the lab user's own, which never
-# touches ownership on the Mac. Both mounts are nofail, so a share that was
-# never pointed at a folder in UTM leaves an empty directory, not a failure.
+# Appears in the lab user's home under attacker_shared_name. VirtFS's 9p tag is
+# always "share", so src below is that tag, not a path. UTM shares mapped-xattr,
+# so Mac-created files carry no guest ownership and land read-only; hence a private
+# mount at /mnt/shared plus bindfs re-presenting it as the lab user's, without
+# touching Mac ownership. Both mounts are nofail, so an unpointed share is empty.
 - name: Install bindfs for the share ownership mapping
   ansible.builtin.apt:
     name: bindfs
