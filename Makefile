@@ -48,11 +48,15 @@ destroy: ## Stop and delete the VM and generated artifacts (persist/ + images/ k
 	@scripts/destroy.sh
 
 test: ## Run the shell unit tests
-	@bash tests/nic-mode.sh
-	@bash tests/persist-roundtrip.sh
-	@bash tests/mullvad-toggle.sh
+	@for t in tests/*.sh; do echo "== $$t"; bash "$$t" || exit 1; done
 
+# bash -n takes ONE script; extra arguments become its positional parameters, so
+# a loop is the only way to check every file.
 lint: ## Syntax-check scripts and Ansible
-	@bash -n scripts/*.sh tests/*.sh && echo "shell OK"
-	@for f in scripts/*.applescript; do osascript -e "1" >/dev/null; done; echo "applescript present"
-	@command -v ansible-lint >/dev/null && ansible-lint ansible/ || echo "ansible-lint not installed, skipping"
+	@for f in scripts/*.sh tests/*.sh; do bash -n "$$f" || exit 1; done; echo "shell OK"
+	@for f in scripts/*.applescript; do osacompile -o /dev/null "$$f" || exit 1; done; echo "applescript OK"
+	@if command -v shellcheck >/dev/null; then shellcheck scripts/*.sh tests/*.sh; \
+		else echo "shellcheck not installed, skipping"; fi
+	@if command -v ansible-lint >/dev/null; then ansible-lint ansible/ \
+		|| echo "ansible-lint reported findings (see above)"; \
+		else echo "ansible-lint not installed, skipping"; fi
