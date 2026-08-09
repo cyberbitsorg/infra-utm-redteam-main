@@ -1,4 +1,4 @@
-# infra-utm-redteam-main
+# Kali VM on Apple Silicon
 
 A single-command Kali attack box on UTM for Apple Silicon. This is a
 daily driver box: a full desktop, the standard Kali toolset, host
@@ -258,33 +258,10 @@ come along:
 ansible-playbook ansible/playbook.yaml --tags mullvad -e attacker_mullvad=true
 ```
 
+## TO DO
+
+* Bridged mode (couldn't get it going)
+
 ## License
 
 GNU General Public License v3.0. See [LICENSE](LICENSE) for details.
-
-## TODO: bridged networking
-
-Bridged mode gave the box its own DHCP address on the physical LAN, which is
-what ARP spoofing, LLMNR/NBNS poisoning and inbound callbacks need. It was
-removed on 2026-08-09 because it could not be made to work on this host.
-
-What happens: QEMU blocks forever inside `vmnet_if_create`, called from
-`net_init_vmnet_bridged` during `qemu_init`. The guest never boots (0% CPU, no
-disk writes) and UTM leaves the VM in `starting`, which makes `utmctl
-ip-address` refuse and the LAN IP discovery time out on a misleading "is DHCP
-available" message.
-
-It is not a UTM or repo bug: a 30-line program calling
-`vmnet_start_interface(VMNET_BRIDGED_MODE, "en0")` as root reproduces the hang
-outside UTM. The same call unprivileged returns `VMNET_FAILURE` immediately, so
-the API answers when it refuses — a hang means something else is waiting.
-
-Ruled out: UTM's entitlements (`com.apple.vm.networking` is present on the
-nested `QEMULauncher.app` that actually calls vmnet), macOS Local Network
-permission, `en0` not being bridgeable (`vmnet_copy_shared_interface_list()`
-reports it as the only candidate), Sophos endpoint protection (fully removed,
-no change), and Mullvad plus Docker Desktop (both quit, no change).
-
-Not yet tested: Safe Mode, a wired uplink instead of Wi-Fi, another Mac.
-
-To bring it back, revert the commit that removed it.
