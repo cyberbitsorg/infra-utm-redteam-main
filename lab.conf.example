@@ -3,7 +3,7 @@
 # --- Identity ---
 # LAB_PREFIX is for the VM. VM is named <LAB_PREFIX>-<VM_NAME>
 # LAB_USER is created by cloud-init; Ansible connects as this user
-# LAB_SSH is you SSH key, preflight creates one
+# LAB_SSH_KEY is your SSH key, preflight creates one
 LAB_PREFIX="redteam"
 LAB_USER="redteam"
 LAB_SSH_KEY="${HOME}/.ssh/id_ed25519_redteam.pub"
