@@ -87,7 +87,7 @@ reconcile_existing_vm() {
 # An existing VM is reconciled, not recreated.
 if vm_exists "$name"; then
   reconcile_existing_vm "$cpu" "$ram" "$disk_gb" "$VM_DISPLAY" "$(display_dynamic)"
-  echo "${name} ${ssh_port} ${mode}"
+  echo "${name} ${ssh_port}"
   exit 0
 fi
 
