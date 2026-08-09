@@ -245,6 +245,30 @@ mullvad account login <account number>
 mullvad connect && mullvad status
 ```
 
+### The kill switch and your SSH session
+
+Mullvad's kill switch drops every packet outside the tunnel, and by default that
+includes the SSH session this box is managed over. Connect the VPN and `make
+ssh` stops answering -- and so does `make configure`, including the run that
+would set `MULLVAD=no` again, which leaves `make console kali` as the only way
+back in.
+
+Provisioning therefore turns on Mullvad's local network sharing, which permits
+in- and outbound traffic on unroutable ranges. That covers the SLIRP subnet in
+`nat` mode and your LAN in `bridged` mode, while all internet traffic still goes
+through the tunnel. Check or set it by hand with:
+
+```bash
+mullvad lan get
+mullvad lan set allow
+```
+
+Worth knowing for `bridged`: "local network sharing" means your real LAN, so
+while the VPN is up the box is still reachable from, and can still reach, every
+other host on that network. That is the trade for keeping SSH alive. Leave
+`mullvad lockdown-mode` off as well, or the box blocks everything whenever the
+tunnel is *down*, which locks out SSH just as thoroughly.
+
 Setting `MULLVAD=no` and running `make configure` is a real removal, not a
 skip: both packages are purged and the repository and key are taken back out.
 Purging `mullvad-vpn` drops `/etc/mullvad-vpn`, so the logged-in account goes

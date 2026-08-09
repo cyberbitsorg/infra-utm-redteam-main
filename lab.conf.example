@@ -63,6 +63,10 @@ SHARED_DIR="${HOME}/Sandbox"
 # desktop; the VPN also works headless through the 'mullvad' CLI. Nothing is
 # logged in for you: run 'mullvad account login <number>' on the box.
 #
+# Provisioning turns on Mullvad's local network sharing, because its kill switch
+# otherwise drops the SSH session this box is managed over the moment you
+# connect. See the README.
+#
 # On arm64 the browser is Mullvad Browser *alpha* -- the stable one is amd64
 # only, because it comes from Tor Browser, which has no stable Linux aarch64
 # release.
