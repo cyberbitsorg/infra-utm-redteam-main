@@ -57,6 +57,13 @@ lint: ## Syntax-check scripts and Ansible
 	@for f in scripts/*.applescript; do osacompile -o /dev/null "$$f" || exit 1; done; echo "applescript OK"
 	@if command -v shellcheck >/dev/null; then shellcheck scripts/*.sh tests/*.sh; \
 		else echo "shellcheck not installed, skipping"; fi
-	@if command -v ansible-lint >/dev/null; then ansible-lint ansible/ \
-		|| echo "ansible-lint reported findings (see above)"; \
+	@if command -v ansible-lint >/dev/null; then \
+		ANSIBLE_COLLECTIONS_PATH="$(COLLECTIONS_PATH)" ansible-lint ansible/; \
 		else echo "ansible-lint not installed, skipping"; fi
+
+# ansible-lint bundles its own ansible-core, which searches only the default
+# collection paths. Homebrew's ansible keeps its collections inside its own
+# site-packages instead, so without this every play fails syntax-check on a
+# module that ansible-playbook resolves fine. Ask ansible-galaxy where they are.
+COLLECTIONS_PATH = $(shell ansible-galaxy collection list 2>/dev/null \
+	| sed -n 's|^\# \(/.*\)/ansible_collections$$|\1|p' | tail -1)

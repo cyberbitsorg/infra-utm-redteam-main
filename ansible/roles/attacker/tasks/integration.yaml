@@ -65,7 +65,7 @@
   when: (attacker_data_dev.stdout | trim) | length == 0
 
 - name: Make an ext4 filesystem on the data disk if it has none
-  ansible.builtin.filesystem:
+  community.general.filesystem:
     fstype: ext4
     dev: "{{ attacker_data_dev.stdout | trim }}"
     # never force: only formats a disk that has no filesystem yet, so existing
