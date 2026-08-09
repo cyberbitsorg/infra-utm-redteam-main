@@ -15,8 +15,12 @@ ATTACKER_PASSWORD="redteam"
 ATTACKER_GUI="xfce"
 
 # Guest renders on the CPU (see VM_DISPLAY in lib.sh), so pixel count decides smoothness.
-#   <WxH>   pinned, UTM scales; use a mode the monitor offers
-#           (1920x1080, 1680x1050, 1600x1200, 1440x900, 1280x1024, 1024x768)
+# One guest pixel is one macOS point (UTM NativeResolution is off), so a mode taller than
+# your display's point height gets scaled down rather than showing more.
+#   <WxH>   pinned, UTM scales. Xorg silently ignores a mode the virtual monitor does not
+#           offer; 'xrandr' in the guest lists them all. The usable ones: 1920x1440,
+#           1920x1200, 1920x1080, 1856x1392, 2048x1152, 1792x1344, 1680x1050, 1600x1200,
+#           1400x1050, 1440x900, 1280x1024, 1024x768
 #   dynamic follow the window; every resize is a mode change, locks up at Retina sizes
 DISPLAY_RESOLUTION="1920x1080"
 
