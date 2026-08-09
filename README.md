@@ -101,8 +101,8 @@ display gives ordinary copy/paste with macOS. Verify with
 
 ### The display
 
-Unfortunately, I had to pin the resolution in `lab.conf` (it is configurable
-though).
+Unfortunately, I had to pin the resolution in `lab.conf` (the resolution is
+configurable though).
 
 The box runs on UTM's `virtio-gpu-pci` display (`VM_DISPLAY` in
 `scripts/lib.sh`), which has no GPU acceleration. That is not an oversight.
@@ -219,7 +219,7 @@ Browser, which has no stable Linux `aarch64` release, so the repository carries
 stable `mullvad-browser` for `amd64` only and `mullvad-browser-alpha` for
 `arm64`. The role picks the alpha package and says so during the run.
 
-Nothing is logged in for you:
+Set it up:
 
 ```bash
 make ssh kali
@@ -228,7 +228,9 @@ mullvad connect
 mullvad status
 ```
 
-### The kill switch and your SSH session
+You might want to start the GUI app as well, and make it start at boot.
+
+### Kill switch and SSH
 
 Mullvad's kill switch drops every packet outside the tunnel.
 
@@ -260,7 +262,10 @@ ansible-playbook ansible/playbook.yaml --tags mullvad -e attacker_mullvad=true
 
 ## TO DO
 
-* Bridged mode (couldn't get it going). Until it works the box has no Layer 2 on the physical LAN, so ARP spoofing, Responder and LLMNR/NBNS poisoning have nothing to target
+* Bridged mode
+  * Couldn't get it going and gave up after a couple of hours
+  * Until it works the box has no Layer 2 on the physical LAN, so ARP spoofing,
+    Responder and LLMNR/NBNS poisoning have nothing to target
 
 ## License
 
