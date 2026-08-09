@@ -31,7 +31,7 @@ local-hostname: ${hostname}
 EOF
 
 # network-config v2: single NIC on DHCP, matched by MAC so the interface name
-# does not matter, which covers both NET_MODE values.
+# does not matter.
 cat > "${work}/network-config" <<EOF
 version: 2
 ethernets:

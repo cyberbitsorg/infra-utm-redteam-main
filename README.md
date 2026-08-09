@@ -1,15 +1,15 @@
 # infra-utm-redteam-main
 
 A single-command Kali attack box on UTM for Apple Silicon. This is a
-daily-driver box: a full desktop, the standard Kali toolset, host
-clipboard/file integration, and a persistent data disk that survives a full
-teardown and rebuild.
+daily driver box: a full desktop, the standard Kali toolset, host
+clipboard and file integration, and a persistent data disk that survives
+a full teardown and rebuild.
 
 ## Architecture
 
 | Layer | Tool | What it does | When it runs |
 |-------|------|---------------|---------------|
-| Provisioning | `scripts/*` + `create-vm.applescript` | Creates the VM from the verified ARM64 cloud image, attaches the NIC per `NET_MODE`, the persistent data disk and the host shared folder; boots it | `make up` |
+| Provisioning | `scripts/*` + `create-vm.applescript` | Creates the VM from the verified ARM64 cloud image, attaches the NIC, the persistent data disk and the host shared folder; boots it | `make up` |
 | Bootstrap | `cloud-init/kali.user-data.yaml` | Creates the lab user, injects the SSH key, grows the rootfs, installs Python + qemu-guest-agent | First boot only |
 | Configuration | `ansible/` (role `attacker`) | Kali toolset, standard kernel, XFCE desktop + greeter, console password, shared folder and data disk | After boot, and on every `make configure` |
 
@@ -67,7 +67,6 @@ make test          # run the shell unit tests
 
 | Setting | Values | Default | What it controls |
 |---|---|---|---|
-| `NET_MODE` | `nat` \| `bridged` | `nat` | `nat`: emulated SLIRP NIC, host reaches the box on `127.0.0.1:2400`. `bridged`: own LAN IP. See Networking |
 | `KALI_TOOLSET` | `curated` \| `headless` \| `default` \| `large` | `default` | Which Kali metapackage to install |
 | `ATTACKER_GUI` | `xfce` \| `none` | `xfce` | Whether the XFCE desktop + LightDM greeter is installed |
 | `DISPLAY_RESOLUTION` | `<W>x<H>` \| `dynamic` | `1920x1080` | Pin the guest and let UTM scale, or let the guest follow the window. See The display |
@@ -84,28 +83,15 @@ See `lab.conf.example` for the full set (identity, image pin, etc.).
 
 ## Networking
 
-The box has one NIC, whose mode is set by `NET_MODE`. It cannot be changed on
-an existing VM: flip it and rebuild with `make destroy` then `make up`.
-
-`nat` maps to UTM's `emulated` mode (QEMU SLIRP). The guest gets outbound
-internet and nothing reaches it except a `127.0.0.1` forward to guest `22` on
-`HOST_SSH_PORT=2400`, so it works on any network, including Wi-Fi with client
-isolation. Port forwards only work on `emulated`, which is why `nat` is not
-vmnet-backed. The port is clear of the sibling repos (2200+index for
+The box has one NIC, in UTM's `emulated` mode (QEMU SLIRP). The guest gets
+outbound internet and nothing reaches it except a `127.0.0.1` forward to guest
+`22` on `HOST_SSH_PORT=2400`, so it works on any network, including wifi with
+client isolation. Port forwards only work on `emulated`, which is why the NIC is
+not vmnet-backed. The port is clear of the sibling repos (2200+index for
 `infra-utm-redteam-lab`, 2300+index for `infra-utm-anon-egress`), so all three
 can be up at once.
 
-`bridged` puts the guest on the physical LAN with its own DHCP address, so ARP
-spoofing, LLMNR/NBNS poisoning and inbound callbacks behave like a real host.
-The host connects to the LAN IP on port `22`. That IP comes from `utmctl
-ip-address`, which needs the guest's `qemu-guest-agent`, and `make up` polls up
-to 3 minutes for it. On a timeout the network probably isolates clients or
-blocks unknown DHCP clients: switch back to `nat`, or get in with
-`make console kali`.
-
-`make ssh` follows the same split: `127.0.0.1:2400` for `nat`, or
-`ansible_host` from `ansible/inventory/hosts.generated.yaml` for `bridged`,
-falling back to a live `utmctl ip-address` query if that file is stale.
+`make ssh` connects to `127.0.0.1:2400`.
 
 ## Host integration
 
@@ -115,11 +101,14 @@ display gives ordinary copy/paste with macOS. Verify with
 
 ### The display
 
+Unfortunately, I had to pin the resolution in `lab.conf` (it is configurable
+though).
+
 The box runs on UTM's `virtio-gpu-pci` display (`VM_DISPLAY` in
-`scripts/lib.sh`), which has **no GPU acceleration**. That is not an oversight.
+`scripts/lib.sh`), which has no GPU acceleration. That is not an oversight.
 Both accelerated devices, `virtio-gpu-gl-pci` and `virtio-ramfb-gl`, come up
 black here: glamor initialises against virgl, Xorg logs no error at all and
-LightDM prompts for a password, yet nothing reaches the framebuffer -- an
+LightDM prompts for a password, yet nothing reaches the framebuffer; an
 in-guest capture of the root window comes back solid black even right after
 `xsetroot -solid red`. Tested on UTM 4.7.5. If a later UTM fixes it,
 `VM_DISPLAY` is the one line to change.
@@ -147,7 +136,7 @@ xrandr | grep '\*'               # the mode actually in use
 sudo dmesg | grep -c flip_done   # want 0; above 0 means the display is stalling
 ```
 
-### Sandbox: the shared folder
+### Shared folder
 
 `SHARED_DIR` on the Mac (`~/Sandbox` by default) appears in the guest home
 under the same name. Point it somewhere else in `lab.conf` and both sides
@@ -155,7 +144,7 @@ follow; a rename also clears the old mount and `fstab` line on the next
 `make configure`. The name cannot contain spaces, which `make preflight`
 rejects, because it becomes an `fstab` entry. The folder lives outside the repo
 and survives `make destroy` untouched, since it is just a folder on the Mac.
-Use it for dotfiles, `.ovpn` configs and loot.
+Use it for dotfiles, `.ovpn` configs, loot, etc.
 
 Linking it takes one manual step per VM and cannot be automated: UTM's QEMU
 backend accepts a share path only from a file picker, never over AppleScript
@@ -169,13 +158,6 @@ already wired up:
 4. Next to `Shared Directory`, click `Browse` and choose your `~/Sandbox`
    folder. Leave the read-only box unchecked.
 5. `Save`, then `make up`, then `make configure` to mount it.
-
-Check it landed:
-
-```bash
-make ssh kali
-mountpoint -q ~/Sandbox && echo mounted || echo "not mounted"
-```
 
 The 9p mount tag is always `share`, whatever the folders are named on either
 side, so [integration.yaml](ansible/roles/attacker/tasks/integration.yaml)
@@ -232,7 +214,7 @@ The browser only follows when `ATTACKER_GUI` is a desktop, since it has no
 headless use. The VPN is installed either way: without a desktop the `mullvad`
 CLI drives the same daemon.
 
-**On ARM64 the browser is the alpha channel.** Mullvad Browser comes from Tor
+On ARM64 the browser is the alpha channel. Mullvad Browser comes from Tor
 Browser, which has no stable Linux `aarch64` release, so the repository carries
 stable `mullvad-browser` for `amd64` only and `mullvad-browser-alpha` for
 `arm64`. The role picks the alpha package and says so during the run.
@@ -242,32 +224,26 @@ Nothing is logged in for you:
 ```bash
 make ssh kali
 mullvad account login <account number>
-mullvad connect && mullvad status
+mullvad connect
+mullvad status
 ```
 
 ### The kill switch and your SSH session
 
-Mullvad's kill switch drops every packet outside the tunnel, and by default that
-includes the SSH session this box is managed over. Connect the VPN and `make
-ssh` stops answering -- and so does `make configure`, including the run that
-would set `MULLVAD=no` again, which leaves `make console kali` as the only way
-back in.
+Mullvad's kill switch drops every packet outside the tunnel.
 
 Provisioning therefore turns on Mullvad's local network sharing, which permits
-in- and outbound traffic on unroutable ranges. That covers the SLIRP subnet in
-`nat` mode and your LAN in `bridged` mode, while all internet traffic still goes
-through the tunnel. Check or set it by hand with:
+in and outbound traffic on unroutable ranges. That covers the SLIRP subnet the
+box sits on, while all internet traffic still goes through the tunnel. Check or
+set it by hand with:
 
 ```bash
 mullvad lan get
 mullvad lan set allow
 ```
 
-Worth knowing for `bridged`: "local network sharing" means your real LAN, so
-while the VPN is up the box is still reachable from, and can still reach, every
-other host on that network. That is the trade for keeping SSH alive. Leave
-`mullvad lockdown-mode` off as well, or the box blocks everything whenever the
-tunnel is *down*, which locks out SSH just as thoroughly.
+Leave `mullvad lockdown-mode` off as well, or the box blocks everything whenever
+the tunnel is *down*, which locks out SSH just as thoroughly.
 
 Setting `MULLVAD=no` and running `make configure` is a real removal, not a
 skip: both packages are purged and the repository and key are taken back out.
@@ -282,28 +258,33 @@ come along:
 ansible-playbook ansible/playbook.yaml --tags mullvad -e attacker_mullvad=true
 ```
 
-## Directory layout
-
-| Directory | Holds | Lifecycle |
-|---|---|---|
-| `images/` | The verified ARM64 Kali base image + checksums | Fetched once; kept by `make destroy` |
-| `persist/` | The persistent data disk (`data.qcow2`) | Kept by `make destroy`; re-attached on the next `make up` |
-| `SHARED_DIR` (`~/Sandbox`, outside the repo) | Host-side shared folder, live-mounted into the guest | User-managed; not touched by the tooling |
-| `generated/` | Per-build OS staging disk + cloud-init seed ISO | Rebuilt every `make up`; wiped by `make destroy` |
-
-Also gitignored: `lab.conf` and `ansible/inventory/hosts.generated.yaml`.
-
-## Safety
-
-This box ships the full offensive Kali toolset with no isolation of its own.
-
-- Use it only against systems you own or are explicitly authorised to test.
-- `NET_MODE=bridged` puts the box directly on your real LAN, so LAN-facing
-  tools reach every device on that network, not a sandbox. Prefer `nat` unless
-  you specifically need a LAN-facing attacker.
-- The console/GUI password (`ATTACKER_PASSWORD`) only guards local logins; SSH
-  is always key-only.
-
 ## License
 
 GNU General Public License v3.0. See [LICENSE](LICENSE) for details.
+
+## TODO: bridged networking
+
+Bridged mode gave the box its own DHCP address on the physical LAN, which is
+what ARP spoofing, LLMNR/NBNS poisoning and inbound callbacks need. It was
+removed on 2026-08-09 because it could not be made to work on this host.
+
+What happens: QEMU blocks forever inside `vmnet_if_create`, called from
+`net_init_vmnet_bridged` during `qemu_init`. The guest never boots (0% CPU, no
+disk writes) and UTM leaves the VM in `starting`, which makes `utmctl
+ip-address` refuse and the LAN IP discovery time out on a misleading "is DHCP
+available" message.
+
+It is not a UTM or repo bug: a 30-line program calling
+`vmnet_start_interface(VMNET_BRIDGED_MODE, "en0")` as root reproduces the hang
+outside UTM. The same call unprivileged returns `VMNET_FAILURE` immediately, so
+the API answers when it refuses — a hang means something else is waiting.
+
+Ruled out: UTM's entitlements (`com.apple.vm.networking` is present on the
+nested `QEMULauncher.app` that actually calls vmnet), macOS Local Network
+permission, `en0` not being bridgeable (`vmnet_copy_shared_interface_list()`
+reports it as the only candidate), Sophos endpoint protection (fully removed,
+no change), and Mullvad plus Docker Desktop (both quit, no change).
+
+Not yet tested: Safe Mode, a wired uplink instead of Wi-Fi, another Mac.
+
+To bring it back, revert the commit that removed it.

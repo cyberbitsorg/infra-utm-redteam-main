@@ -11,16 +11,6 @@ LAB_USER="redteam"
 # Public SSH key injected into the VM. preflight.sh generates one if missing.
 LAB_SSH_KEY="${HOME}/.ssh/id_ed25519_redteam.pub"
 
-# --- Networking -------------------------------------------------------------
-# How the single NIC is attached. Cannot be changed on an existing VM: flip it
-# and rebuild with 'make destroy' then 'make up'.
-#   nat     : emulated SLIRP NIC with a 127.0.0.1 SSH port-forward. Portable;
-#             works on any Wi-Fi.
-#   bridged : own DHCP address on the physical LAN (ARP spoofing, LLMNR/NBNS
-#             poisoning, inbound callbacks). No port-forward; 'make ssh' uses
-#             the discovered LAN IP.
-NET_MODE="nat"
-
 # --- Console and desktop ----------------------------------------------------
 # Password for the lab user on the console and the LightDM greeter. SSH stays
 # key-only regardless.

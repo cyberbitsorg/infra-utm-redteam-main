@@ -54,20 +54,9 @@ priv_key() { echo "${LAB_SSH_KEY%.pub}"; }
 # The box always runs Kali.
 base_image() { echo "${IMAGES_DIR}/${KALI_IMG_FILE}"; }
 
-# --- Networking mode --------------------------------------------------------
-# 'nat' is the emulated/SLIRP NIC with a host SSH port-forward; 'bridged' gives
-# the box its own DHCP address on the physical LAN and no host forward.
-nic_mode() {
-  local m="${NET_MODE:-nat}"
-  case "$m" in
-    nat|bridged) echo "$m" ;;
-    *) die "NET_MODE must be 'nat' or 'bridged', got '${m}'" ;;
-  esac
-}
-
-# HOST_SSH_PORT is the NAT-mode host forward. Kept clear of the sibling repos'
-# ranges (2200+index for redteam-lab, 2300+index for anon-egress) so all three
-# labs can run at once.
+# The NIC is UTM's "emulated" (QEMU SLIRP) mode with a host SSH port-forward.
+# HOST_SSH_PORT is kept clear of the sibling repos' ranges (2200+index for
+# redteam-lab, 2300+index for anon-egress) so all three labs can run at once.
 VM_MAC="52:54:00:AA:00:01"
 HOST_SSH_PORT=2400
 

@@ -32,10 +32,6 @@ log "Checking Ansible"
 command -v ansible-playbook >/dev/null 2>&1 \
   || die "Ansible not found. Install with: brew install ansible"
 
-log "Checking NET_MODE"
-mode="$(nic_mode)"           # dies on an invalid value
-ok "Network mode: ${mode}"
-
 # The share name becomes a mount point in the guest's fstab, where whitespace
 # would need octal escaping and silently breaks the mount instead.
 case "$(shared_name)" in

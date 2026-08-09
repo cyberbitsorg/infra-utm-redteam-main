@@ -53,36 +53,10 @@ fi
 "${SCRIPTS}/preflight.sh"
 "${SCRIPTS}/fetch-images.sh"
 
-mode="$(nic_mode)"
-log "Provisioning the VM in ${mode} mode"
+log "Provisioning the VM"
 result="$("${SCRIPTS}/create-vm.sh" | tail -1)"
-read -r name port vmmode <<<"$result"
-
-if [[ "$vmmode" == "bridged" ]]; then
-  log "Discovering ${name} LAN IP (qemu-guest-agent)"
-  host=""
-  deadline=$(( $(date +%s) + 180 ))
-  while :; do
-    # First non-loopback IPv4 the guest agent reports.
-    host="$("$UTMCTL" ip-address "$name" 2>/dev/null \
-      | grep -Eo '([0-9]{1,3}\.){3}[0-9]{1,3}' \
-      | grep -v '^127\.' | head -1 || true)"
-    [[ -n "$host" ]] && break
-    [[ $(date +%s) -lt $deadline ]] || die "Timed out getting ${name} LAN IP. Is DHCP available on the bridged network?"
-    sleep 5
-  done
-  # 10.0.2.0/24 is QEMU's SLIRP subnet, so a bridged run that lands there is
-  # really still on the emulated NIC: NET_MODE was flipped on a VM that already
-  # exists, and reconcile does not rewire a NIC. Without this the run would sit
-  # out the full SSH timeout on an address nothing can reach.
-  case "$host" in
-    10.0.2.*) die "${name} reports ${host}, a QEMU SLIRP address, so its NIC is still emulated. NET_MODE cannot be changed on an existing VM: run 'make destroy' then 'make up', or set NET_MODE=nat again." ;;
-  esac
-  port=22
-  ok "${name} at ${host}:22"
-else
-  host="127.0.0.1"
-fi
+read -r name port <<<"$result"
+host="127.0.0.1"
 
 log "Waiting for the VM to accept SSH"
 "${SCRIPTS}/wait-ssh.sh" "$host" "$port" 420

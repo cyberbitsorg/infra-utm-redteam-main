@@ -82,8 +82,8 @@
 # 'make configure' both stop answering -- including the configure run that would
 # turn Mullvad off again, leaving the serial console as the only way back in.
 # Allowing local network sharing lets in- and outbound traffic on unroutable
-# ranges through, which covers the SLIRP subnet in nat mode and the LAN in
-# bridged mode. Internet traffic still goes through the tunnel.
+# ranges through, which covers the SLIRP subnet the box sits on. Internet
+# traffic still goes through the tunnel.
 - name: Read the Mullvad local network sharing setting
   ansible.builtin.command:
     cmd: mullvad lan get

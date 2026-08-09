@@ -10,17 +10,11 @@ mac="$VM_MAC"
 cpu="$VM_CPU"
 ram="$VM_RAM"
 disk_gb="$VM_DISK_GB"
-mode="$(nic_mode)"
-if [[ "$mode" == "nat" ]]; then
-  ssh_port="$HOST_SSH_PORT"
-else
-  ssh_port=0
-fi
+ssh_port="$HOST_SSH_PORT"
 
 # Bring an existing VM in line with lab.conf's cpu/ram/display. Only stops and
 # starts it when something really differs, so a repeat 'make up' restarts
-# nothing. NET_MODE is not reconciled: UTM cannot rewire a NIC on an existing
-# VM, and up.sh catches the mismatch when it discovers the address.
+# nothing.
 reconcile_existing_vm() {
   local want_cpu="$1" want_ram="$2" want_disk_gb="$3" want_display="$4" want_dynres="$5"
   local cur cur_cpu cur_ram cur_display cur_dynres disk candidate cur_bytes want_bytes cur_gb
@@ -137,17 +131,13 @@ seed="$("$(dirname "${BASH_SOURCE[0]}")/make-seed.sh" "$VM_NAME" "$mac" | tail -
 
 shared="$(shared_dir)"
 mkdir -p "$shared"
-if [[ "$mode" == "nat" ]]; then
-  log "Creating VM ${name} in UTM (nat NIC, ssh->127.0.0.1:${ssh_port}; mem ${ram}MiB, ${cpu} cpu, disk ${disk_gb}G, data ${DATA_DISK_GB:-40}G)"
-else
-  log "Creating VM ${name} in UTM (bridged NIC, own LAN IP; mem ${ram}MiB, ${cpu} cpu, disk ${disk_gb}G, data ${DATA_DISK_GB:-40}G)"
-fi
+log "Creating VM ${name} in UTM (ssh->127.0.0.1:${ssh_port}; mem ${ram}MiB, ${cpu} cpu, disk ${disk_gb}G, data ${DATA_DISK_GB:-40}G)"
 vm_id="$(osascript "$(dirname "${BASH_SOURCE[0]}")/create-vm.applescript" \
-  "$name" "$vm_disk" "$seed" "$ram" "$cpu" "$mac" "$ssh_port" "$mode" "$data_disk" "$shared" "$VM_DISPLAY" "$(display_dynamic)")"
+  "$name" "$vm_disk" "$seed" "$ram" "$cpu" "$mac" "$ssh_port" "$data_disk" "$shared" "$VM_DISPLAY" "$(display_dynamic)")"
 ok "Created ${name} (${vm_id})"
 
 log "Starting ${name}"
 start_vm "$name"
 
-# Emit a line the orchestrator parses: <name> <ssh_port> <net_mode>
-echo "${name} ${ssh_port} ${mode}"
+# Emit a line the orchestrator parses: <name> <ssh_port>
+echo "${name} ${ssh_port}"

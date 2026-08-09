@@ -1,7 +1,6 @@
--- Create the QEMU aarch64 Kali VM in UTM. One NIC, mode chosen by netMode:
---   "nat"     : "emulated" (QEMU SLIRP) with a 127.0.0.1 SSH port-forward.
---               hostfwd works ONLY here; UTM's vmnet modes drop port forwards.
---   "bridged" : vmnet-bridged, own DHCP address, no port-forward possible.
+-- Create the QEMU aarch64 Kali VM in UTM. One NIC in "emulated" (QEMU SLIRP)
+-- mode with a 127.0.0.1 SSH port-forward; hostfwd works ONLY there, as UTM's
+-- vmnet modes drop port forwards.
 --
 -- This and vm-config.applescript are the only UTM integration points. Property
 -- names follow docs.getutm.app/scripting/reference; if a UTM version rejects a
@@ -14,11 +13,10 @@ on run argv
 	set cpuCores to (item 5 of argv) as integer
 	set macAddr to item 6 of argv
 	set sshPort to (item 7 of argv) as integer
-	set netMode to item 8 of argv
-	set dataDiskPath to item 9 of argv
-	set sharePath to item 10 of argv
-	set displayHw to item 11 of argv
-	set dynRes to ((item 12 of argv) is "true")
+	set dataDiskPath to item 8 of argv
+	set sharePath to item 9 of argv
+	set displayHw to item 10 of argv
+	set dynRes to ((item 11 of argv) is "true")
 
 	-- Every POSIX file coercion has to happen outside the tell block: inside it
 	-- a bare "POSIX file x" in a record is sent to UTM to resolve and fails with
@@ -29,12 +27,7 @@ on run argv
 	if dataDiskPath is not "" then set dataFile to POSIX file dataDiskPath
 
 	tell application "UTM"
-		-- NIC per mode.
-		if netMode is "bridged" then
-			set nics to {{mode:bridged, address:macAddr}}
-		else
-			set nics to {{mode:emulated, address:macAddr, port forwards:{{host address:"127.0.0.1", host port:sshPort, guest port:22}}}}
-		end if
+		set nics to {{mode:emulated, address:macAddr, port forwards:{{host address:"127.0.0.1", host port:sshPort, guest port:22}}}}
 
 		-- Non-removable so UTM uses VirtIO and not a USB CD-ROM, which hangs boot
 		-- on UTM 4.7.x. The data disk is the 3rd drive; vm-config.applescript's
