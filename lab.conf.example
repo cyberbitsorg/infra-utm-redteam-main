@@ -35,7 +35,7 @@ SHARED_DIR="${HOME}/Sandbox"
 # sharing so the kill switch can't drop your SSH session; see README.
 MULLVAD="no"
 
-# curated (nmap, hydra, sqlmap, ffuf, ...) | headless | default | large. Bigger = slower first build.
+# curated (minimal) | headless | default | large. Bigger = slower first build.
 KALI_TOOLSET="default"
 
 # Second disk in persist/, survives 'make destroy'. Role can't change on a running box:
