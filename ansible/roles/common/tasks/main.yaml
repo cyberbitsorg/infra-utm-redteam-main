@@ -10,14 +10,16 @@
     update_cache: true
     cache_valid_time: 3600
 
+# vm_name is <LAB_PREFIX>-<VM_NAME>, set per host by gen-inventory.sh, so the
+# banner follows a renamed prefix instead of hardcoding one. The fallback keeps
+# a direct ansible-playbook run (no generated inventory) working.
 - name: Deploy MOTD
   ansible.builtin.copy:
     dest: /etc/motd
     mode: "0644"
-    content: |+
+    content: |
 
       ════════════════════════════════════════
-        redteam · main Kali attack box · {{ inventory_hostname }}
+        {{ vm_name | default(inventory_hostname) }} · Kali attack box
         Authorised use only.
       ════════════════════════════════════════
-
