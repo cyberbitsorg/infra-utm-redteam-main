@@ -121,6 +121,49 @@ keep_home() {
   esac
 }
 
+# --- UTM bundles ------------------------------------------------------------
+# UTM copies every disk into the VM's own bundle at creation, so the live data
+# disk is that copy and not persist/data.qcow2. AppleScript cannot hand the path
+# back: an imported drive exposes only an id, and asking for its "source" errors
+# with -1728. So the bundle is located on disk and its config.plist read instead.
+utm_documents_dir() {
+  echo "${UTM_DOCUMENTS_DIR:-${HOME}/Library/Containers/com.utmapp.UTM/Data/Documents}"
+}
+
+# The UUID UTM knows a VM by, which is also the UUID in its config.plist. Prints
+# nothing when the VM does not exist.
+vm_uuid() {
+  osascript "${REPO_ROOT}/scripts/vm-config.applescript" uuid "${1:?vm name required}" 2>/dev/null || true
+}
+
+# Bundle directory for a VM UUID. Matched on the UUID and not on the folder
+# name, because UTM appends a suffix ("main-kali 2.utm") when a name comes back;
+# a name match would then copy some other VM's disk back over persist/. Prints
+# nothing when nothing matches.
+vm_bundle_dir() {
+  local uuid="${1:-}" plist
+  [[ -n "$uuid" ]] || return 0
+  for plist in "$(utm_documents_dir)"/*.utm/config.plist; do
+    [[ -f "$plist" ]] || continue
+    if [[ "$(plutil -extract Information.UUID raw -o - "$plist" 2>/dev/null || true)" == "$uuid" ]]; then
+      dirname "$plist"
+      return 0
+    fi
+  done
+}
+
+# The persistent data disk inside a bundle: the third drive, in the order
+# create-vm.applescript adds them (boot, seed, data). Prints nothing when the
+# bundle has no third drive or its image file is gone, so callers must treat an
+# empty result as "not found" rather than as an empty path.
+bundle_data_disk() {
+  local bundle="${1:-}" image
+  [[ -f "${bundle}/config.plist" ]] || return 0
+  image="$(plutil -extract Drive.2.ImageName raw -o - "${bundle}/config.plist" 2>/dev/null || true)"
+  [[ -n "$image" && -f "${bundle}/Data/${image}" ]] || return 0
+  echo "${bundle}/Data/${image}"
+}
+
 # --- Platform guard ---------------------------------------------------------
 require_macos() {
   [[ "$(uname -s)" == "Darwin" ]] || die "This lab provisions UTM VMs and must run on macOS."

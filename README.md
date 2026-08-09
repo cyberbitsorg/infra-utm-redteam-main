@@ -195,9 +195,15 @@ stops with an explanation instead: rebuild with `make destroy` then `make up`.
 
 UTM imports `persist/data.qcow2` into its own VM bundle, so `make destroy`
 copies the live disk back out before deleting the VM and the next `make up`
-re-attaches it. Worth confirming once on a new UTM version:
-`echo loot | sudo tee /data/proof.txt`, then `make destroy && make up`, and
-check the file is still there.
+re-attaches it. It finds that disk by reading the bundle's `config.plist`,
+because UTM's AppleScript interface will not hand back the path of a drive it
+has imported. If it cannot find or copy the disk, `make destroy` stops without
+deleting anything; `PRESERVE_DATA=no make destroy` throws the disk away on
+purpose. Note that this copy only happens through `make destroy` -- deleting
+the VM in UTM's own window deletes the data disk with it.
+
+Worth confirming once on a new UTM version: `touch ~/proof.txt`, then
+`make destroy && make up`, and check the file is still there.
 
 ## Mullvad
 

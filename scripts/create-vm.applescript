@@ -30,8 +30,8 @@ on run argv
 		set nics to {{mode:emulated, address:macAddr, port forwards:{{host address:"127.0.0.1", host port:sshPort, guest port:22}}}}
 
 		-- Non-removable so UTM uses VirtIO and not a USB CD-ROM, which hangs boot
-		-- on UTM 4.7.x. The data disk is the 3rd drive; vm-config.applescript's
-		-- "datadisk" op reads it back by that position.
+		-- on UTM 4.7.x. The data disk is the 3rd drive; lib.sh's bundle_data_disk
+		-- reads it back by that position, so this order is load-bearing.
 		if dataFile is not missing value then
 			set theDrives to {{removable:false, source:diskFile}, {removable:false, source:seedFile}, {removable:false, source:dataFile}}
 		else

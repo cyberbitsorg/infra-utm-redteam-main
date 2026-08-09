@@ -2,7 +2,11 @@
 -- create-vm.sh stops it first). Property-name note: see create-vm.applescript.
 --   get <name>       -> "<cpu> <ram-mib> <display> <dynres>"
 --   set <name> <cpu> <ram-mib> <display> <dynres>  -> "ok"  (dynres true|false)
---   datadisk <name>  -> source path of the 3rd drive (data disk), or ""
+--   uuid <name>      -> the VM's UUID, which is also the one in its config.plist
+--
+-- There is deliberately no op handing back a drive's path: UTM imports drives
+-- into the VM bundle, and an imported drive has no readable "source" (-1728).
+-- lib.sh's vm_bundle_dir/bundle_data_disk read the bundle's config.plist for it.
 on run argv
 	set op to item 1 of argv
 	set vmName to item 2 of argv
@@ -33,11 +37,8 @@ on run argv
 			set dynRes to ((item 6 of argv) is "true")
 			update configuration vm with {cpu cores:cpuCores, memory:memMiB, displays:{{hardware:dispHw, dynamic resolution:dynRes}}}
 			return "ok"
-		else if op is "datadisk" then
-			set cfg to configuration of vm
-			set ds to drives of cfg
-			if (count of ds) < 3 then return ""
-			return POSIX path of (source of (item 3 of ds))
+		else if op is "uuid" then
+			return (id of vm) as text
 		else
 			error "vm-config: unknown op " & op
 		end if
