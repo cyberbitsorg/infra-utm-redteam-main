@@ -260,7 +260,7 @@ ansible-playbook ansible/playbook.yaml --tags mullvad -e attacker_mullvad=true
 
 ## TO DO
 
-* Bridged mode (couldn't get it going)
+* Bridged mode (couldn't get it going). Until it works the box has no Layer 2 on the physical LAN, so ARP spoofing, Responder and LLMNR/NBNS poisoning have nothing to target
 
 ## License
 
