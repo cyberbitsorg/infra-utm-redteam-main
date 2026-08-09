@@ -41,6 +41,7 @@ run_ansible() {
       -e "attacker_display_resolution=$(display_resolution)" \
       -e "attacker_compositing=$(desktop_compositing)" \
       -e "attacker_keep_home=$(keep_home)" \
+      -e "attacker_mullvad=$(mullvad_enabled)" \
       -e "attacker_shared_name=$(shared_name)" \
       -e "@${vars_file}" )
   ok "Configuration complete"

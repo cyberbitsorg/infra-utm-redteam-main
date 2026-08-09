@@ -84,6 +84,7 @@ to day:
 | `DISPLAY_RESOLUTION` | `<W>x<H>` \| `dynamic` | `1920x1080` | Pin the guest desktop to a resolution and let UTM scale it into its window, or let the guest follow the window. See The display below |
 | `DESKTOP_COMPOSITING` | `yes` \| `no` | `no` | XFCE drop shadows, transparency and fades. Each is a full-screen CPU redraw here |
 | `CLIPBOARD` | `yes` \| `no` | `yes` | SPICE clipboard sharing (`spice-vdagent`) between macOS and the guest desktop |
+| `MULLVAD` | `yes` \| `no` | `no` | Mullvad VPN app and Mullvad Browser from Mullvad's apt repository. See Mullvad below |
 | `KEEP_HOME` | `yes` \| `no` | `yes` | `yes`: the persistent disk is `/home`, so dotfiles, keys and tool state survive a rebuild. `no`: the disk is scratch at `/data` (`~/engagements` points at it) and every rebuild gives a clean home |
 | `SHARED_DIR` | path | `~/Sandbox` | Host folder shared into the guest, mounted in the lab user's home under the same name |
 | `DATA_DISK_GB` | integer | `40` | Size of the persistent disk at first creation; never shrunk |
@@ -232,6 +233,48 @@ Going from `no` to `yes` happens on the next `make configure`, carrying your
 current home across. The other direction cannot be done on a running box, since
 it means pulling `/home` out from under every running process, so provisioning
 stops with an explanation instead: rebuild with `make destroy` then `make up`.
+
+## Mullvad
+
+`MULLVAD=yes` installs the Mullvad VPN app and Mullvad Browser
+([mullvad.yaml](ansible/roles/attacker/tasks/mullvad.yaml)). Kali packages
+neither, and the `.deb` downloads from Mullvad's site carry no upgrade path, so
+provisioning adds Mullvad's own apt repository (signed by
+`/usr/share/keyrings/mullvad-keyring.asc`) and both then move with the box's
+normal `apt upgrade`. The suite is pinned to `stable` rather than taken from
+`lsb_release -cs` the way Mullvad's instructions do, because on Kali that
+answers `kali-rolling`, which is not a suite the repository has — apt would
+fail on every update from then on.
+
+The browser only follows when `ATTACKER_GUI` is a desktop, since it has no
+headless use. The VPN is installed either way: without a desktop the `mullvad`
+CLI drives the same daemon.
+
+**On ARM64 the browser is the alpha channel.** Mullvad Browser comes from Tor
+Browser, which has no stable Linux `aarch64` release, so Mullvad's repository
+carries stable `mullvad-browser` for `amd64` only and `mullvad-browser-alpha`
+for `arm64`. On this box the role picks the alpha package and says so during the
+run. The VPN app itself is a normal stable `arm64` build.
+
+Nothing is logged in for you:
+
+```bash
+make ssh kali
+mullvad account login <account number>
+mullvad connect && mullvad status
+```
+
+Setting `MULLVAD=no` and running `make configure` is a real removal, not a skip:
+both packages are purged and the repository and key are taken back out. Purging
+`mullvad-vpn` drops `/etc/mullvad-vpn`, so the logged-in account goes with it.
+
+`make configure` is the normal way to apply a flip. To run just these tasks,
+note that a direct playbook call does not read `lab.conf`, so the value has to
+come along:
+
+```bash
+ansible-playbook ansible/playbook.yaml --tags mullvad -e attacker_mullvad=true
+```
 
 ## Directory layout
 

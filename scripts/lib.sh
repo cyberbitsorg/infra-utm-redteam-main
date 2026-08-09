@@ -128,6 +128,18 @@ desktop_compositing() {
   esac
 }
 
+# Mullvad VPN app and Mullvad Browser, from Mullvad's own apt repository. One
+# knob for both, emitted as a bool for Ansible. 'no' is not just "skip": it
+# purges the packages and takes the repository back out again, so flipping the
+# knob off leaves the box the way it was before.
+mullvad_enabled() {
+  case "${MULLVAD:-no}" in
+    yes|true|1) echo true ;;
+    no|false|0) echo false ;;
+    *) die "MULLVAD must be 'yes' or 'no', got '${MULLVAD}'" ;;
+  esac
+}
+
 # Persistent data disk kept OUTSIDE the disposable OS lifecycle.
 data_disk_path() { echo "${PERSIST_DIR}/data.qcow2"; }
 

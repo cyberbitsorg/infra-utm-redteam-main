@@ -1,0 +1,120 @@
+---
+# Mullvad VPN app and Mullvad Browser, from Mullvad's own apt repository, behind
+# the single MULLVAD knob in lab.conf. Kali packages neither, and the .deb
+# downloads carry no upgrade path, so the repository is what keeps both current
+# with the rest of the box's `apt upgrade`.
+#
+# attacker_mullvad false is a real removal, not a skip: the packages are purged
+# and the repository and its key are taken back out, so a box that had MULLVAD
+# on and then off is the same as one that never had it. Purging mullvad-vpn
+# also drops /etc/mullvad-vpn, so the logged-in account goes with it.
+
+- name: Read the guest's dpkg architecture
+  ansible.builtin.command:
+    cmd: dpkg --print-architecture
+  register: attacker_dpkg_arch
+  changed_when: false
+
+# Mullvad publishes stable Mullvad Browser for amd64 only: it is built from Tor
+# Browser, which has no stable Linux aarch64 release. On this ARM64 box the
+# alpha channel is therefore the only Mullvad Browser there is, and it is a
+# separate package (mullvad-browser-alpha) rather than a channel of the same
+# one. The VPN app itself ships arm64 as a normal stable build.
+- name: Pick the Mullvad Browser package for this architecture
+  ansible.builtin.set_fact:
+    attacker_mullvad_browser: >-
+      {{ 'mullvad-browser' if (attacker_dpkg_arch.stdout | trim) == 'amd64'
+         else 'mullvad-browser-alpha' }}
+
+- name: Say which Mullvad Browser channel this architecture gets
+  ansible.builtin.debug:
+    msg: >-
+      Mullvad ships no stable Mullvad Browser for
+      {{ attacker_dpkg_arch.stdout | trim }}; installing
+      {{ attacker_mullvad_browser }} instead.
+  when:
+    - attacker_mullvad | bool
+    - attacker_mullvad_browser != 'mullvad-browser'
+
+# --- Install ----------------------------------------------------------------
+- name: Install the Mullvad repository signing key
+  ansible.builtin.get_url:
+    url: https://repository.mullvad.net/deb/mullvad-keyring.asc
+    dest: /usr/share/keyrings/mullvad-keyring.asc
+    owner: root
+    group: root
+    mode: "0644"
+  when: attacker_mullvad | bool
+
+# The suite is "stable", spelled out rather than taken from `lsb_release -cs`
+# the way Mullvad's own instructions do. On Kali that command answers
+# "kali-rolling", which is not a suite this repository has, and apt would fail
+# on every update from then on. All of Mullvad's suites carry the same builds.
+- name: Add the Mullvad apt repository
+  ansible.builtin.apt_repository:
+    filename: mullvad
+    repo: >-
+      deb [signed-by=/usr/share/keyrings/mullvad-keyring.asc arch={{ attacker_dpkg_arch.stdout | trim }}]
+      https://repository.mullvad.net/deb/stable stable main
+    state: present
+    update_cache: true
+  when: attacker_mullvad | bool
+
+# The browser is a desktop application with no headless use, so it only follows
+# when there is a desktop to run it on. The VPN is useful either way: without a
+# GUI the `mullvad` CLI drives the same daemon.
+- name: Install the Mullvad VPN app and Mullvad Browser
+  ansible.builtin.apt:
+    name: >-
+      {{ ['mullvad-vpn']
+         + ([attacker_mullvad_browser] if (attacker_gui | default('xfce')) != 'none' else []) }}
+    state: present
+    update_cache: true
+    cache_valid_time: 3600
+  when: attacker_mullvad | bool
+
+# The postinst enables it already; stated here so a daemon that was disabled by
+# hand comes back on the next configure run.
+- name: Enable the Mullvad daemon
+  ansible.builtin.systemd_service:
+    name: mullvad-daemon
+    enabled: true
+    state: started
+  when: attacker_mullvad | bool
+
+- name: Say that Mullvad still needs an account
+  ansible.builtin.debug:
+    msg: >-
+      Mullvad is installed but not logged in. On the box:
+      `mullvad account login <account number>` then `mullvad connect`.
+  when: attacker_mullvad | bool
+
+# --- Removal ----------------------------------------------------------------
+# Packages first, repository second: dropping the sources file first would take
+# the packages' origin away while they are still installed.
+- name: Purge the Mullvad packages
+  ansible.builtin.apt:
+    name:
+      - mullvad-vpn
+      - mullvad-browser
+      - mullvad-browser-alpha
+    state: absent
+    purge: true
+  when: not (attacker_mullvad | bool)
+
+- name: Remove the Mullvad repository and key
+  ansible.builtin.file:
+    path: "{{ item }}"
+    state: absent
+  loop:
+    - /etc/apt/sources.list.d/mullvad.list
+    - /usr/share/keyrings/mullvad-keyring.asc
+  register: attacker_mullvad_repo_removed
+  when: not (attacker_mullvad | bool)
+
+- name: Refresh the apt cache without the Mullvad repository
+  ansible.builtin.apt:
+    update_cache: true
+  when:
+    - not (attacker_mullvad | bool)
+    - attacker_mullvad_repo_removed.changed

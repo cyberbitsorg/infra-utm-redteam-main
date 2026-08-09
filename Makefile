@@ -50,6 +50,7 @@ destroy: ## Stop and delete the VM and generated artifacts (persist/ + images/ k
 test: ## Run the shell unit tests
 	@bash tests/nic-mode.sh
 	@bash tests/persist-roundtrip.sh
+	@bash tests/mullvad-toggle.sh
 
 lint: ## Syntax-check scripts and Ansible
 	@bash -n scripts/*.sh tests/*.sh && echo "shell OK"

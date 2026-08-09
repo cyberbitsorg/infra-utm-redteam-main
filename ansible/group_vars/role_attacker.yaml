@@ -48,3 +48,8 @@ attacker_display_resolution: 1920x1080
 # redraw on the CPU.
 attacker_compositing: false
 
+# Mullvad VPN app and Mullvad Browser, from MULLVAD. Off by default: it adds a
+# third-party apt repository, which is not something to hand a box that did not
+# ask for it.
+attacker_mullvad: false
+

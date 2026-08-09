@@ -63,6 +63,24 @@ CLIPBOARD="yes"
 # the README. The folder name cannot contain spaces (it becomes an fstab entry).
 SHARED_DIR="${HOME}/Sandbox"
 
+# --- Mullvad ----------------------------------------------------------------
+# Install the Mullvad VPN app and Mullvad Browser from Mullvad's own apt
+# repository: 'yes' or 'no'. One knob for both.
+#
+# Neither is in Kali, so this adds a third-party repository (signed with
+# Mullvad's key) and both stay current with the box's normal apt upgrades. The
+# browser is only installed when ATTACKER_GUI is a desktop; the VPN also works
+# headless through the 'mullvad' CLI. Nothing is logged in for you: run
+# 'mullvad account login <number>' on the box.
+#
+# On this ARM64 box the browser is Mullvad Browser *alpha* -- Mullvad builds the
+# stable one for amd64 only, because it comes from Tor Browser, which has no
+# stable Linux aarch64 release.
+#
+# 'no' purges both packages and removes the repository again, which also drops
+# /etc/mullvad-vpn and with it the logged-in account.
+MULLVAD="no"
+
 # --- Toolset ----------------------------------------------------------------
 # Which Kali toolset to install. Bigger = slower first 'make up'.
 #   curated  : small headless subset (nmap, hydra, sqlmap, ffuf, ...)

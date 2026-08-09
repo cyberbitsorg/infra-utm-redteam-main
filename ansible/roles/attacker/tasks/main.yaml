@@ -1,8 +1,9 @@
 ---
 # Order is load-bearing: swap to the console kernel and reboot BEFORE the
 # desktop (a greeter needs the standard kernel's framebuffer); set the console
-# password; install the desktop; wire host integration and mounts; install the
-# toolset last (it can pull GUI apps and is the slowest step).
+# password; install the desktop; wire host integration and mounts; add Mullvad
+# once the desktop it puts a browser on exists; install the toolset last (it can
+# pull GUI apps and is the slowest step).
 #
 # Every include repeats its tags under "apply". That is not redundant. These are
 # dynamic includes, and a tag on include_tasks only decides whether the include
@@ -44,6 +45,13 @@
     apply:
       tags: [integration, mounts]
   tags: [integration, mounts]
+
+- name: Mullvad VPN and Mullvad Browser
+  ansible.builtin.include_tasks:
+    file: mullvad.yaml
+    apply:
+      tags: [mullvad, vpn]
+  tags: [mullvad, vpn]
 
 - name: Kali toolset
   ansible.builtin.include_tasks:
