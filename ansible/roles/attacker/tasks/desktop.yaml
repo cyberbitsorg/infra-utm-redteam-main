@@ -61,10 +61,8 @@
 # an xrandr call from a session hook, and survives a reboot. Xorg ignores an
 # unknown mode rather than failing on it.
 #
-# DISPLAY_RESOLUTION may name several modes, for a host with more than one
-# display. Anything the virtual monitor does not already offer needs its own
-# Modeline here, or xrandr has nothing to switch to; the first mode in the list
-# is the one Xorg prefers at boot.
+# DISPLAY_RESOLUTION may name several modes. Anything the virtual monitor does
+# not already offer needs its own Modeline here; the first mode is preferred.
 - name: Find the virtual monitor's output name
   ansible.builtin.shell:
     cmd: |
@@ -95,9 +93,8 @@
   failed_when: false
   when: (attacker_drm_output.stdout | trim | length) > 0
 
-# cvt -r asks for reduced blanking, which keeps the pixel clock down. It names
-# its output "<W>x<H>R", so the sed renames it to the bare WxH that
-# Option "PreferredMode", lab-screen and the launchers all use.
+# cvt names its output "<W>x<H>R", so the sed renames it to the bare WxH that
+# PreferredMode, lab-screen and the launchers use.
 - name: Build a modeline for every custom mode
   ansible.builtin.shell:
     cmd: |
@@ -173,9 +170,6 @@
   # would report every run as a change.
   changed_when: attacker_compositing_result.stdout | trim == 'changed'
 
-# Switching modes is a plain xrandr call because every mode is already in the
-# Xorg drop-in, so there is no session hook that can fail and leave the guest
-# with nothing to switch to.
 - name: Install the display-mode switcher
   ansible.builtin.copy:
     src: lab-screen
@@ -191,14 +185,9 @@
     state: absent
   when: (attacker_mode_list | default([]) | length) == 0
 
-# One launcher per mode, named after the resolution so the set stays
-# self-describing when DISPLAY_RESOLUTION changes. KEEP_HOME=yes keeps ~/Desktop
-# across a rebuild, so these are reconciled and not merely created.
-#
-# No group: cloud-init creates the user with no_user_group, so there is no group
-# named after LAB_USER (see the same trap in integration.yaml). The fact that
-# resolves the real GID is set there, and that file runs after this one, so
-# owner alone is what keeps this working on a first run.
+# KEEP_HOME=yes keeps ~/Desktop across a rebuild, so launchers are reconciled and
+# not merely created. No group: cloud-init creates the user with no_user_group,
+# so there is no group named after LAB_USER (see integration.yaml).
 - name: Ensure the lab user has a desktop directory
   ansible.builtin.file:
     path: "/home/{{ ansible_user }}/Desktop"
@@ -243,11 +232,8 @@
   when: (item.path | basename | regex_replace('^lab-screen-(.*)\\.desktop$', '\\1'))
         not in (attacker_mode_list | default([]))
 
-# Super+N picks the Nth mode. Same bus-borrowing as the compositing task above:
-# a live session's xfconfd owns the file and would write the old values back on
-# logout, and with no session at all dbus-run-session writes the XML directly.
-# Every slot we manage is cleared first, so a shorter mode list leaves nothing
-# behind pointing at a mode that no longer exists.
+# Super+N picks the Nth mode. Same bus-borrowing as the compositing task above.
+# Managed slots are cleared first, so a shorter mode list leaves nothing behind.
 - name: Bind Super+N to each display mode
   become: true
   become_user: "{{ ansible_user }}"

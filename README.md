@@ -133,6 +133,9 @@ minutes at a stretch.
   startup and the greeter is covered too. The first mode is the one it boots
   in. Switch inside the guest with Super+1, Super+2 and so on, with the desktop
   launchers, or with `lab-screen <WxH>`; the choice lasts until reboot.
+  `lab-screen` restarts `spice-vdagentd` after the switch: it sizes its virtual
+  tablet once, when it creates the device, so without that the mouse keeps
+  mapping onto the old geometry and clicks land off-target.
 - `DESKTOP_COMPOSITING=no` turns off XFCE's shadows, transparency and fades.
 
 Both are reconciled onto an existing VM by `make up`, and a resolution change

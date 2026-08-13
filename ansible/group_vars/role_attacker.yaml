@@ -40,9 +40,8 @@ attacker_password: redteam
 # nothing is pinned.
 attacker_display_resolution: 1920x1080
 
-# Every mode from DISPLAY_RESOLUTION, comma separated. The first one is
-# attacker_display_resolution above and becomes Xorg's PreferredMode; the rest
-# are switchable in the guest with lab-screen. Empty means dynamic.
+# Every mode from DISPLAY_RESOLUTION, comma separated. The first is
+# attacker_display_resolution above; the rest are switchable with lab-screen.
 attacker_display_modes: 1920x1080
 
 # Off by default: without GPU acceleration every shadow and fade is a

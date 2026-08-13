@@ -89,14 +89,9 @@ display_modes() {
   echo "$out"
 }
 
-# The mode Xorg prefers at boot and the greeter comes up in: the first in the
-# list, or "" when following the window.
-#
-# The failure is propagated by hand, twice over. 'local modes=$(...)' would make
-# local supply the exit status, and set -e cannot be relied on either: a caller
-# testing this function (if, ||, &&) suspends set -e inside the subshell too, so
-# the die in display_modes would kill only that innermost substitution and this
-# function would still return 0 on a malformed list.
+# The mode Xorg prefers at boot: the first in the list, or "" for dynamic. The
+# failure is propagated by hand because 'local modes=$(...)' would mask the exit
+# status, and a caller testing this function suspends set -e inside the subshell.
 display_resolution() {
   local modes
   modes="$(display_modes)" || return 1

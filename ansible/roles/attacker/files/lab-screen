@@ -1,9 +1,6 @@
 #!/usr/bin/env bash
 # Switch the virtual monitor to one of the modes DISPLAY_RESOLUTION defined.
 # Managed by Ansible. Do not edit.
-#
-# The modes themselves come from /etc/X11/xorg.conf.d/10-resolution.conf, so
-# this only ever selects one Xorg already knows about.
 set -euo pipefail
 
 mode="${1:-}"
@@ -12,8 +9,7 @@ if [[ -z "$mode" ]]; then
   exit 2
 fi
 
-# Resolve the output rather than assuming Virtual-1; the same loop the attacker
-# role uses to find it at provision time.
+# Resolve the output rather than assuming Virtual-1.
 output=""
 for c in /sys/class/drm/card*-*/; do
   [ "$(cat "${c}status" 2>/dev/null)" = "connected" ] || continue
@@ -30,4 +26,19 @@ if ! xrandr | grep -qE "^[[:space:]]+${mode}[[:space:]]"; then
   exit 1
 fi
 
-exec xrandr --output "$output" --mode "$mode"
+xrandr --output "$output" --mode "$mode"
+
+# spice-vdagentd sizes its virtual tablet when it creates the uinput device and
+# never resizes it on a RandR change, so after a mode switch clicks land
+# off-target in proportion to the difference. Recreating the device resyncs it.
+# It has to be the daemon: spice-vdagent (no trailing d) does not own /dev/uinput.
+if systemctl is-active --quiet spice-vdagentd 2>/dev/null; then
+  # Let vdagent see the RandR event and report the new size first.
+  sleep 1
+  if ! sudo -n systemctl restart spice-vdagentd 2>/dev/null; then
+    echo "lab-screen: mode is now ${mode}, but spice-vdagentd could not be" >&2
+    echo "  restarted, so mouse clicks will be offset. Run:" >&2
+    echo "    sudo systemctl restart spice-vdagentd" >&2
+    exit 1
+  fi
+fi
