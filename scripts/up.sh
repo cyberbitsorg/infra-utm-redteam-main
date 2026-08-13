@@ -36,6 +36,7 @@ run_ansible() {
       -e "attacker_gui=${ATTACKER_GUI:-xfce}" \
       -e "attacker_clipboard=${CLIPBOARD:-yes}" \
       -e "attacker_display_resolution=$(display_resolution)" \
+      -e "attacker_display_modes=$(display_modes)" \
       -e "attacker_compositing=$(desktop_compositing)" \
       -e "attacker_keep_home=$(keep_home)" \
       -e "attacker_mullvad=$(mullvad_enabled)" \
