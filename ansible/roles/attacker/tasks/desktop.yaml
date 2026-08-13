@@ -191,6 +191,107 @@
     state: absent
   when: (attacker_mode_list | default([]) | length) == 0
 
+# One launcher per mode, named after the resolution so the set stays
+# self-describing when DISPLAY_RESOLUTION changes. KEEP_HOME=yes keeps ~/Desktop
+# across a rebuild, so these are reconciled and not merely created.
+#
+# No group: cloud-init creates the user with no_user_group, so there is no group
+# named after LAB_USER (see the same trap in integration.yaml). The fact that
+# resolves the real GID is set there, and that file runs after this one, so
+# owner alone is what keeps this working on a first run.
+- name: Ensure the lab user has a desktop directory
+  ansible.builtin.file:
+    path: "/home/{{ ansible_user }}/Desktop"
+    state: directory
+    owner: "{{ ansible_user }}"
+    mode: "0755"
+  when: (attacker_mode_list | default([]) | length) > 0
+
+- name: Put a launcher on the desktop for every mode
+  ansible.builtin.copy:
+    dest: "/home/{{ ansible_user }}/Desktop/lab-screen-{{ item }}.desktop"
+    owner: "{{ ansible_user }}"
+    mode: "0755"
+    content: |
+      [Desktop Entry]
+      Type=Application
+      Version=1.0
+      Name=Display {{ item }}
+      Comment=Switch the virtual monitor to {{ item }}
+      Exec=lab-screen {{ item }}
+      Icon=preferences-desktop-display
+      Terminal=false
+      Categories=Settings;
+  loop: "{{ attacker_mode_list | default([]) }}"
+
+- name: Find launchers already on the desktop
+  ansible.builtin.find:
+    paths: "/home/{{ ansible_user }}/Desktop"
+    patterns: "lab-screen-*.desktop"
+  register: attacker_launchers_present
+  changed_when: false
+
+- name: Remove launchers whose mode is gone from DISPLAY_RESOLUTION
+  ansible.builtin.file:
+    path: "{{ item.path }}"
+    state: absent
+  loop: "{{ attacker_launchers_present.files | default([]) }}"
+  loop_control:
+    label: "{{ item.path | basename }}"
+  # Doubled backslashes: Jinja parses these as string literals first, where a
+  # single '\1' is the control character \x01 and not a backreference.
+  when: (item.path | basename | regex_replace('^lab-screen-(.*)\\.desktop$', '\\1'))
+        not in (attacker_mode_list | default([]))
+
+# Super+N picks the Nth mode. Same bus-borrowing as the compositing task above:
+# a live session's xfconfd owns the file and would write the old values back on
+# logout, and with no session at all dbus-run-session writes the XML directly.
+# Every slot we manage is cleared first, so a shorter mode list leaves nothing
+# behind pointing at a mode that no longer exists.
+- name: Bind Super+N to each display mode
+  become: true
+  become_user: "{{ ansible_user }}"
+  ansible.builtin.shell:
+    cmd: |
+      set -euo pipefail
+      pid="$(pgrep -x -u "$(id -u)" xfce4-session | head -1 || true)"
+      if [ -n "$pid" ] && [ -r "/proc/$pid/environ" ]; then
+        bus="$(tr '\0' '\n' < "/proc/$pid/environ" | sed -n 's/^DBUS_SESSION_BUS_ADDRESS=//p' | head -1)"
+        [ -n "$bus" ] && export DBUS_SESSION_BUS_ADDRESS="$bus"
+      fi
+      run() { if [ -n "${DBUS_SESSION_BUS_ADDRESS:-}" ]; then "$@"; else dbus-run-session -- "$@"; fi; }
+      want=""
+      n=1
+      for mode in {{ attacker_mode_list | default([]) | join(' ') }}; do
+        want="${want}${n}:lab-screen ${mode};"
+        n=$((n + 1))
+      done
+      got=""
+      for n in 1 2 3 4 5 6 7 8 9; do
+        cur="$(run xfconf-query -c xfce4-keyboard-shortcuts -p "/commands/custom/<Super>${n}" 2>/dev/null || true)"
+        case "$cur" in
+          "lab-screen "*) got="${got}${n}:${cur};" ;;
+        esac
+      done
+      if [ "$want" = "$got" ]; then echo unchanged; exit 0; fi
+      for n in 1 2 3 4 5 6 7 8 9; do
+        cur="$(run xfconf-query -c xfce4-keyboard-shortcuts -p "/commands/custom/<Super>${n}" 2>/dev/null || true)"
+        case "$cur" in
+          "lab-screen "*) run xfconf-query -c xfce4-keyboard-shortcuts -p "/commands/custom/<Super>${n}" -r >/dev/null 2>&1 || true ;;
+        esac
+      done
+      n=1
+      for mode in {{ attacker_mode_list | default([]) | join(' ') }}; do
+        run xfconf-query -c xfce4-keyboard-shortcuts -p "/commands/custom/<Super>${n}" \
+          --create -t string -s "lab-screen ${mode}"
+        n=$((n + 1))
+      done
+      echo changed
+    executable: /bin/bash
+  register: attacker_shortcuts_result
+  # Exact match, not "in": "unchanged" contains "changed".
+  changed_when: attacker_shortcuts_result.stdout | trim == 'changed'
+
 # A resolution change only reaches Xorg on restart, and restarting LightDM
 # throws away whatever is open. So only when nobody is logged in; the greeter
 # alone is fine.
