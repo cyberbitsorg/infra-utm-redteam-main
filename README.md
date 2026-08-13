@@ -69,7 +69,7 @@ make test          # run the shell unit tests
 |---|---|---|---|
 | `KALI_TOOLSET` | `curated` \| `headless` \| `default` \| `large` | `default` | Which Kali metapackage to install |
 | `ATTACKER_GUI` | `xfce` \| `none` | `xfce` | Whether the XFCE desktop + LightDM greeter is installed |
-| `DISPLAY_RESOLUTION` | `<W>x<H>` \| `dynamic` | `1920x1080` | Pin the guest and let UTM scale, or let the guest follow the window. See The display |
+| `DISPLAY_RESOLUTION` | `<W>x<H> [<W>x<H> ...]` \| `dynamic` | `1920x1080` | One or more pinned modes, or let the guest follow the window. The first is the one it boots in; the rest are switchable inside the guest. See The display |
 | `DESKTOP_COMPOSITING` | `yes` \| `no` | `no` | XFCE shadows, transparency and fades. Each is a full-screen CPU redraw here |
 | `CLIPBOARD` | `yes` \| `no` | `yes` | SPICE clipboard sharing with macOS |
 | `MULLVAD` | `yes` \| `no` | `no` | Mullvad VPN app and Mullvad Browser. See Mullvad |
@@ -125,6 +125,14 @@ minutes at a stretch.
   mode into `/etc/X11/xorg.conf.d/10-resolution.conf`, which covers the greeter
   as well as the session. `dynamic` instead turns every resize step into a mode
   change -- the single most reliable way to lock the display up.
+- Listing several modes (`DISPLAY_RESOLUTION="3360x1418 1512x982"`) is for a
+  host with more than one display. One guest pixel is one macOS point, so a
+  mode matching a display's point size fills it exactly in fullscreen, with no
+  scaling at all. Ansible generates a `Modeline` with `cvt -r` for every mode
+  the virtual monitor does not already offer, so Xorg knows them all from
+  startup and the greeter is covered too. The first mode is the one it boots
+  in. Switch inside the guest with Super+1, Super+2 and so on, with the desktop
+  launchers, or with `lab-screen <WxH>`; the choice lasts until reboot.
 - `DESKTOP_COMPOSITING=no` turns off XFCE's shadows, transparency and fades.
 
 Both are reconciled onto an existing VM by `make up`, and a resolution change
