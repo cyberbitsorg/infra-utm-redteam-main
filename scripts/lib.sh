@@ -74,14 +74,33 @@ display_dynamic() {
   esac
 }
 
-# The pinned resolution, or "" when following the window. Empty is a valid
-# answer, so callers test the string and not the exit status.
-display_resolution() {
-  local r="${DISPLAY_RESOLUTION:-1920x1080}"
+# Every mode in DISPLAY_RESOLUTION, comma separated, or "" when following the
+# window. Empty is a valid answer, so callers test the string and not the exit
+# status. Comma and not space because up.sh hands this to Ansible as an
+# -e "key=value" extra-var, and Ansible splits that form on whitespace.
+display_modes() {
+  local r="${DISPLAY_RESOLUTION:-1920x1080}" m out=""
   [[ "$r" == "dynamic" ]] && { echo ""; return 0; }
-  [[ "$r" =~ ^[0-9]+x[0-9]+$ ]] \
-    || die "DISPLAY_RESOLUTION must be 'dynamic' or <width>x<height>, got '${r}'"
-  echo "$r"
+  for m in $r; do
+    [[ "$m" =~ ^[0-9]+x[0-9]+$ ]] \
+      || die "DISPLAY_RESOLUTION must be 'dynamic' or a space-separated list of <width>x<height>, got '${r}'"
+    out="${out:+${out},}${m}"
+  done
+  echo "$out"
+}
+
+# The mode Xorg prefers at boot and the greeter comes up in: the first in the
+# list, or "" when following the window.
+#
+# The failure is propagated by hand, twice over. 'local modes=$(...)' would make
+# local supply the exit status, and set -e cannot be relied on either: a caller
+# testing this function (if, ||, &&) suspends set -e inside the subshell too, so
+# the die in display_modes would kill only that innermost substitution and this
+# function would still return 0 on a malformed list.
+display_resolution() {
+  local modes
+  modes="$(display_modes)" || return 1
+  echo "${modes%%,*}"
 }
 
 # XFCE compositing, as a bool for Ansible. Every effect is a full-screen redraw
