@@ -1,0 +1,33 @@
+#!/usr/bin/env bash
+# Switch the virtual monitor to one of the modes DISPLAY_RESOLUTION defined.
+# Managed by Ansible. Do not edit.
+#
+# The modes themselves come from /etc/X11/xorg.conf.d/10-resolution.conf, so
+# this only ever selects one Xorg already knows about.
+set -euo pipefail
+
+mode="${1:-}"
+if [[ -z "$mode" ]]; then
+  echo "usage: lab-screen <width>x<height>" >&2
+  exit 2
+fi
+
+# Resolve the output rather than assuming Virtual-1; the same loop the attacker
+# role uses to find it at provision time.
+output=""
+for c in /sys/class/drm/card*-*/; do
+  [ "$(cat "${c}status" 2>/dev/null)" = "connected" ] || continue
+  output="$(basename "$c" | sed 's/^card[0-9]*-//')"
+  break
+done
+[[ -n "$output" ]] || { echo "lab-screen: no connected output found" >&2; exit 1; }
+
+if ! xrandr | grep -qE "^[[:space:]]+${mode}[[:space:]]"; then
+  {
+    echo "lab-screen: ${output} does not offer ${mode}. Available:"
+    xrandr | sed -n 's/^ \{3,\}\([0-9]\{3,\}x[0-9]\{3,\}\).*/  \1/p' | sort -u
+  } >&2
+  exit 1
+fi
+
+exec xrandr --output "$output" --mode "$mode"

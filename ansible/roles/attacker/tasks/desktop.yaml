@@ -173,6 +173,24 @@
   # would report every run as a change.
   changed_when: attacker_compositing_result.stdout | trim == 'changed'
 
+# Switching modes is a plain xrandr call because every mode is already in the
+# Xorg drop-in, so there is no session hook that can fail and leave the guest
+# with nothing to switch to.
+- name: Install the display-mode switcher
+  ansible.builtin.copy:
+    src: lab-screen
+    dest: /usr/local/bin/lab-screen
+    owner: root
+    group: root
+    mode: "0755"
+  when: (attacker_mode_list | default([]) | length) > 0
+
+- name: Remove the switcher when the guest follows the UTM window
+  ansible.builtin.file:
+    path: /usr/local/bin/lab-screen
+    state: absent
+  when: (attacker_mode_list | default([]) | length) == 0
+
 # A resolution change only reaches Xorg on restart, and restarting LightDM
 # throws away whatever is open. So only when nobody is logged in; the greeter
 # alone is fine.
