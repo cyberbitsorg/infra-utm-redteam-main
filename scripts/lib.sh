@@ -104,6 +104,18 @@ mullvad_enabled() {
   esac
 }
 
+# Guest audio, as a bool for Ansible. Only the guest half is scriptable: UTM's
+# AppleScript API has no sound property (see create-vm.applescript), so the
+# sound device itself is added once by hand in UTM's VM settings, the way the
+# shared folder is. 'no' removes the guest stack again.
+audio_enabled() {
+  case "${AUDIO:-no}" in
+    yes|true|1) echo true ;;
+    no|false|0) echo false ;;
+    *) die "AUDIO must be 'yes' or 'no', got '${AUDIO}'" ;;
+  esac
+}
+
 # Persistent data disk, kept outside the disposable OS lifecycle.
 data_disk_path() { echo "${PERSIST_DIR}/data.qcow2"; }
 

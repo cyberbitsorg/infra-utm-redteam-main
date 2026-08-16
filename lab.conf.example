@@ -29,6 +29,10 @@ DISPLAY_RESOLUTION="1920x1080"
 DESKTOP_COMPOSITING="no"
 CLIPBOARD="yes"
 
+# AUDIO sends guest sound to the Mac's current default output device. The card is added
+# by hand in UTM once; this knob only does the guest side. See README.
+AUDIO="no"
+
 # Host folder shared live into the guest under the same name. Outside the repo so engagement
 # files never hit a git tree; no spaces (fstab entry). Point UTM at it once, see README.
 SHARED_DIR="${HOME}/Sandbox"
