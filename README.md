@@ -72,6 +72,7 @@ make test          # run the shell unit tests
 | `DISPLAY_RESOLUTION` | `<W>x<H> [<W>x<H> ...]` \| `dynamic` | `1920x1080` | One or more pinned modes, or let the guest follow the window. The first is the one it boots in; the rest are switchable inside the guest. See The display |
 | `DESKTOP_COMPOSITING` | `yes` \| `no` | `no` | XFCE shadows, transparency and fades. Each is a full-screen CPU redraw here |
 | `CLIPBOARD` | `yes` \| `no` | `yes` | SPICE clipboard sharing with macOS |
+| `AUDIO` | `yes` \| `no` | `no` | Guest sound out to the Mac. Needs a sound device added by hand in UTM. See Sound |
 | `MULLVAD` | `yes` \| `no` | `no` | Mullvad VPN app and Mullvad Browser. See Mullvad |
 | `KEEP_HOME` | `yes` \| `no` | `yes` | `yes`: `/home` is a second disk that `make destroy` keeps. `no`: no second disk, so every rebuild starts with an empty home |
 | `SHARED_DIR` | path | `~/Sandbox` | Host folder shared into the guest under the same name |
@@ -184,6 +185,32 @@ mounted privately at `/mnt/shared` (root only), and `bindfs` re-presents it at
 `~/Sandbox` with every file forced to the lab user. The whole tree is writable
 from the guest whichever side created a file, and ownership on the Mac is never
 touched.
+
+### Sound
+
+`AUDIO=yes` gets guest sound out to the Mac, played by UTM through CoreAudio.
+Adding the card is one manual step per VM: UTM's AppleScript configuration has
+no sound property, so it cannot be scripted.
+
+1. `make down`, open UTM, select `main-kali`, click the sliders icon.
+2. `New…`, pick `Sound`, leave the hardware on `intel-hda`.
+3. `Save`, then `make up` and `make configure`.
+
+The guest needs little: `kali-desktop-xfce` already brings PipeWire and the
+volume plugin, and `snd-hda-intel` is in the Kali kernel. Provisioning adds
+`alsa-utils` and puts the lab user in the `audio` group, without which a test
+over SSH gets no `/dev/snd` ACLs. Verify with `aplay -l` and
+`speaker-test -c2 -twav -l1`; with `AUDIO=yes` and no card added, the play run
+says so rather than leaving you with silence.
+
+Two limits. Sound follows the Mac's current **default output device** — switch
+to a headset and the VM follows, but the guest cannot pick a host device. And
+emulated HDA over SPICE on a CPU-only guest crackles under load: fine for
+notifications and video, not for audio work.
+
+`AUDIO=no` masks the PipeWire user units (`systemctl --global`), muting the box
+from the next login. It does not uninstall PipeWire, since `apt purge` would
+take `kali-desktop-xfce` with it.
 
 ### Persistence
 

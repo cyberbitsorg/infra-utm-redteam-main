@@ -34,6 +34,10 @@ attacker_packages: >-
 
 attacker_gui: xfce
 attacker_clipboard: "yes"
+
+# Off by default: the guest half is useless until the sound card is added by
+# hand in UTM, and 'no' masks the desktop's PipeWire units to keep the box mute.
+attacker_audio: false
 attacker_password: redteam
 
 # Empty means DISPLAY_RESOLUTION=dynamic: the guest follows the UTM window and

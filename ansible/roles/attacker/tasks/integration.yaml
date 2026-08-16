@@ -32,6 +32,81 @@
     state: started
   when: attacker_clipboard | default('yes') | bool
 
+# --- Audio (UTM sound device) -----------------------------------------------
+# Guest side only: UTM's AppleScript configuration has no sound property, so the
+# card itself is added by hand in the VM's settings, like the share's host path.
+# kali-desktop-xfce already brings PipeWire and the volume plugin, and purging
+# those would take the desktop with them, so this only adds what is missing and
+# makes AUDIO=no a mute rather than a skip.
+- name: Install or remove the ALSA command-line tools
+  ansible.builtin.apt:
+    name: alsa-utils
+    state: "{{ 'present' if (attacker_audio | default(false) | bool) else 'absent' }}"
+    purge: true
+    update_cache: true
+    cache_valid_time: 3600
+
+# logind hands the seat's session ACLs on /dev/snd, which an SSH session never
+# gets. The group membership is what makes aplay and speaker-test work over SSH,
+# where audio is most likely to be tested from.
+- name: Put the lab user in the audio group
+  ansible.builtin.user:
+    name: "{{ ansible_user }}"
+    groups: audio
+    append: true
+  when: attacker_audio | default(false) | bool
+
+- name: Take the lab user out of the audio group
+  ansible.builtin.command:
+    cmd: gpasswd -d {{ ansible_user }} audio
+  register: attacker_audio_group
+  changed_when: "'Removing user' in attacker_audio_group.stdout"
+  failed_when: false
+  when: not (attacker_audio | default(false) | bool)
+
+# AUDIO=no leaves the packages alone but masks the user units, so the box makes
+# no sound even if a card is attached in UTM. --global writes to /etc/systemd/
+# user, which a live session has already read: the change lands on next login.
+- name: Mask or unmask the PipeWire user units
+  ansible.builtin.shell:
+    cmd: |
+      set -euo pipefail
+      want={{ 'unmask' if (attacker_audio | default(false) | bool) else 'mask' }}
+      changed=no
+      for u in pipewire.socket pipewire.service pipewire-pulse.socket \
+               pipewire-pulse.service wireplumber.service; do
+        cur="$(systemctl --global is-enabled "$u" 2>/dev/null || true)"
+        if [ "$want" = mask ] && [ "$cur" != masked ]; then
+          systemctl --global mask "$u"; changed=yes
+        elif [ "$want" = unmask ] && [ "$cur" = masked ]; then
+          systemctl --global unmask "$u"; changed=yes
+        fi
+      done
+      echo "$changed"
+    executable: /bin/bash
+  register: attacker_audio_mask
+  changed_when: attacker_audio_mask.stdout | trim == 'yes'
+
+# The card only exists once the sound device has been added in UTM, so a box
+# with AUDIO=yes and no card is the normal state right after enabling the knob.
+# Say so here instead of leaving it to be discovered as silence.
+- name: Look for the emulated sound card
+  ansible.builtin.command:
+    cmd: aplay -l
+  register: attacker_audio_card
+  changed_when: false
+  failed_when: false
+  when: attacker_audio | default(false) | bool
+
+- name: Report a missing sound device
+  ansible.builtin.debug:
+    msg: >-
+      AUDIO is yes but the guest sees no sound card. Add one in UTM: stop the
+      VM, VM settings, New..., Sound, hardware intel-hda, then start it again.
+  when:
+    - attacker_audio | default(false) | bool
+    - "'card ' not in (attacker_audio_card.stdout | default(''))"
+
 # --- Persistent /home -------------------------------------------------------
 # The second VirtIO disk (persist/data.qcow2) survives make destroy and carries
 # /home with it, so dotfiles, keys and tool state outlive a rebuild.

@@ -44,6 +44,7 @@ keep_home >/dev/null
 display_resolution >/dev/null
 desktop_compositing >/dev/null
 mullvad_enabled >/dev/null
+audio_enabled >/dev/null
 
 log "Ensuring persist/ and the share folder exist"
 mkdir -p "$PERSIST_DIR" "$(shared_dir)"

@@ -53,13 +53,19 @@ DISPLAY_RESOLUTION=1920x1080
 for v in yes true 1; do
   DESKTOP_COMPOSITING="$v"; check "compositing $v" "true" "$(desktop_compositing)"
   KEEP_HOME="$v";           check "keep_home $v"   "true" "$(keep_home)"
+  AUDIO="$v";               check "audio $v"       "true" "$(audio_enabled)"
 done
 for v in no false 0; do
   DESKTOP_COMPOSITING="$v"; check "compositing $v" "false" "$(desktop_compositing)"
   KEEP_HOME="$v";           check "keep_home $v"   "false" "$(keep_home)"
+  AUDIO="$v";               check "audio $v"       "false" "$(audio_enabled)"
 done
 DESKTOP_COMPOSITING=maybe; rejects "junk DESKTOP_COMPOSITING" desktop_compositing
 KEEP_HOME=maybe;           rejects "junk KEEP_HOME" keep_home
+AUDIO=maybe;               rejects "junk AUDIO" audio_enabled
+
+# Unset means off: the guest half is pointless until the card is added in UTM.
+unset AUDIO; check "audio defaults to off" "false" "$(audio_enabled)"
 
 # --- SHARED_DIR: the basename becomes a guest mount point and an fstab entry -
 SHARED_DIR="${HOME}/Sandbox"

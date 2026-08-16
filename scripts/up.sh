@@ -35,6 +35,7 @@ run_ansible() {
       -e "attacker_toolset=${KALI_TOOLSET:-default}" \
       -e "attacker_gui=${ATTACKER_GUI:-xfce}" \
       -e "attacker_clipboard=${CLIPBOARD:-yes}" \
+      -e "attacker_audio=$(audio_enabled)" \
       -e "attacker_display_resolution=$(display_resolution)" \
       -e "attacker_display_modes=$(display_modes)" \
       -e "attacker_compositing=$(desktop_compositing)" \
