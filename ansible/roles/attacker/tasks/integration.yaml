@@ -38,9 +38,14 @@
 # kali-desktop-xfce already brings PipeWire and the volume plugin, and purging
 # those would take the desktop with them, so this only adds what is missing and
 # makes AUDIO=no a mute rather than a skip.
-- name: Install or remove the ALSA command-line tools
+# alsa-utils for aplay and speaker-test, pulseaudio-utils for pactl, which is
+# how volume and the output sink are set from a shell. The latter is only the
+# client half: pipewire-pulse stays the server and no daemon comes with it.
+- name: Install or remove the audio command-line tools
   ansible.builtin.apt:
-    name: alsa-utils
+    name:
+      - alsa-utils
+      - pulseaudio-utils
     state: "{{ 'present' if (attacker_audio | default(false) | bool) else 'absent' }}"
     purge: true
     update_cache: true

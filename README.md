@@ -198,10 +198,11 @@ no sound property, so it cannot be scripted.
 
 The guest needs little: `kali-desktop-xfce` already brings PipeWire and the
 volume plugin, and `snd-hda-intel` is in the Kali kernel. Provisioning adds
-`alsa-utils` and puts the lab user in the `audio` group, without which a test
-over SSH gets no `/dev/snd` ACLs. Verify with `aplay -l` and
-`speaker-test -c2 -twav -l1`; with `AUDIO=yes` and no card added, the play run
-says so rather than leaving you with silence.
+`alsa-utils` and `pulseaudio-utils` (`aplay`, `speaker-test`, `pactl`) and puts
+the lab user in the `audio` group, without which a test over SSH gets no
+`/dev/snd` ACLs. Verify with `aplay -l` and `speaker-test -c2 -twav -l1`; with
+`AUDIO=yes` and no card added, the play run says so rather than leaving you
+with silence.
 
 Two limits. Sound follows the Mac's current **default output device** — switch
 to a headset and the VM follows, but the guest cannot pick a host device. And
