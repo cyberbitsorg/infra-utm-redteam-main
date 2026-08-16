@@ -204,6 +204,16 @@ the lab user in the `audio` group, without which a test over SSH gets no
 `AUDIO=yes` and no card added, the play run says so rather than leaving you
 with silence.
 
+It also opens the mixer, which a fresh card needs. On the first boot with a
+sound card there is no `/var/lib/alsa/asound.state`, so `alsa-restore` falls
+back to a generic initialisation that leaves `Master` at 0% and `[off]`.
+PipeWire mirrors that into its sink, which produces a genuinely confusing box:
+`speaker-test` writes to the card directly and is audible, while a browser or
+the desktop stays silent. Provisioning unmutes any playback control that is
+muted or at zero, then runs `alsactl store` so later boots restore the state
+instead of initialising generically again. A level you set yourself is left
+alone.
+
 Two limits. Sound follows the Mac's current **default output device** — switch
 to a headset and the VM follows, but the guest cannot pick a host device. And
 emulated HDA over SPICE on a CPU-only guest crackles under load: fine for

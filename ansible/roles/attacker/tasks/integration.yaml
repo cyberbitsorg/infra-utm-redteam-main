@@ -103,6 +103,44 @@
   failed_when: false
   when: attacker_audio | default(false) | bool
 
+# On the first boot with a card, alsa-restore finds no /var/lib/alsa/asound.state
+# and falls back to alsactl's generic initialisation, which leaves Master at 0%
+# and [off] while PCM sits at 98%. PipeWire mirrors that into its sink, so the
+# box lands in a confusing state: speaker-test, which writes to the card
+# directly, is audible while a browser or the desktop stays silent.
+#
+# alsactl store is the half that lasts: with a state file present, alsa-restore
+# loads it on every later boot instead of initialising generically again.
+#
+# Only a control that is muted or at zero is touched, so this initialises a
+# fresh card without overriding a level set later. A deliberate mute at 0 does
+# come back on the next make configure.
+- name: Open an ALSA playback control that came up muted
+  ansible.builtin.shell:
+    cmd: |
+      set -euo pipefail
+      card="$(aplay -l 2>/dev/null | sed -n 's/^card \([0-9]\+\).*/\1/p' | head -1)"
+      if [ -z "$card" ]; then echo unchanged; exit 0; fi
+      changed=no
+      for control in Master PCM; do
+        state="$(amixer -c "$card" sget "$control" 2>/dev/null | grep -m1 'Playback .*\[' || true)"
+        [ -n "$state" ] || continue
+        case "$state" in
+          *'[off]'*|*'[0%]'*)
+            amixer -c "$card" sset "$control" 70% unmute >/dev/null
+            changed=yes
+            ;;
+        esac
+      done
+      if [ "$changed" = yes ]; then alsactl store; fi
+      echo "$changed"
+    executable: /bin/bash
+  register: attacker_audio_mixer
+  changed_when: attacker_audio_mixer.stdout | trim == 'yes'
+  when:
+    - attacker_audio | default(false) | bool
+    - "'card ' in (attacker_audio_card.stdout | default(''))"
+
 - name: Report a missing sound device
   ansible.builtin.debug:
     msg: >-
