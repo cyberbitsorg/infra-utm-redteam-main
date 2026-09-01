@@ -55,7 +55,9 @@ test: ## Run the shell unit tests
 lint: ## Syntax-check scripts and Ansible
 	@for f in scripts/*.sh tests/*.sh; do bash -n "$$f" || exit 1; done; echo "shell OK"
 	@for f in scripts/*.applescript; do osacompile -o /dev/null "$$f" || exit 1; done; echo "applescript OK"
-	@if command -v shellcheck >/dev/null; then shellcheck scripts/*.sh tests/*.sh; \
+	@# -S warning: the info level (SC1091 can't follow the sourced lib.sh,
+	@# style notes) is noise here; only warnings and up should fail the build.
+	@if command -v shellcheck >/dev/null; then shellcheck -S warning scripts/*.sh tests/*.sh; \
 		else echo "shellcheck not installed, skipping"; fi
 	@if command -v ansible-lint >/dev/null; then \
 		ANSIBLE_COLLECTIONS_PATH="$(COLLECTIONS_PATH)" ansible-lint ansible/; \

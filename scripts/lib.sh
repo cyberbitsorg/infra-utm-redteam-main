@@ -1,6 +1,11 @@
 #!/usr/bin/env bash
 # Shared helpers, sourced by every script. Not meant to be run directly.
 
+# Every variable defined here is part of the contract with the scripts that
+# source this file, so "unused" below is normal, not drift.
+# shellcheck shell=bash
+# shellcheck disable=SC2034
+
 set -euo pipefail
 
 # --- Paths ------------------------------------------------------------------

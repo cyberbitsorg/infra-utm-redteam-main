@@ -25,6 +25,8 @@ run_ansible() {
   local vars_file pw esc
   vars_file="$(mktemp)"
   chmod 600 "$vars_file"
+  # Expanded on purpose: vars_file is a local, gone by the time the trap fires.
+  # shellcheck disable=SC2064
   trap "rm -f '${vars_file}'" EXIT
   pw="${ATTACKER_PASSWORD:-redteam}"
   # Double every ' the way a single-quoted YAML scalar escapes one, so any
