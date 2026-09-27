@@ -9,9 +9,10 @@ LAB_USER="redteam"
 LAB_SSH_KEY="${HOME}/.ssh/id_ed25519_redteam.pub"
 
 # --- Console and desktop ---
-# ATTACKER_PASSWORD for console + LightDM only; SSH stays key-only
+# ATTACKER_PASSWORD for console + LightDM only; SSH stays key-only.
+# change-me-strong-passphrase is a placeholder: pick something long and random.
 # ATTACKER_GUI can be xfce or none
-ATTACKER_PASSWORD="redteam"
+ATTACKER_PASSWORD="change-me-strong-passphrase"
 ATTACKER_GUI="xfce"
 
 # Guest renders on the CPU (see VM_DISPLAY in lib.sh), so pixel count decides smoothness.
