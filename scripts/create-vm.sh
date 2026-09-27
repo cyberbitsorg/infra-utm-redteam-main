@@ -31,9 +31,13 @@ reconcile_existing_vm() {
     change_hw=1
   fi
 
-  # Compare-and-report only. UTM copied this staging file into its own bundle
-  # at creation time, so it is no longer the VM's live disk: resizing it here
-  # would change nothing and only make the staging file lie about the real size.
+  # Compare-and-report only, against the disk the VM actually boots. UTM copied
+  # the staging file into its own bundle at creation, so the staging file is
+  # never the live disk: resizing it after the fact changes nothing and only
+  # makes it lie about the real size. It is also named after the VM name at
+  # creation time, so a renamed VM or a cleared generated/ misses it; the
+  # bundle's boot drive (the same disk, found by UUID) is the fallback that
+  # always matches.
   disk=""
   for candidate in "${GEN_DIR}/${name}.qcow2" "${GEN_DIR}/${name}.raw"; do
     if [[ -f "$candidate" ]]; then
@@ -41,6 +45,7 @@ reconcile_existing_vm() {
       break
     fi
   done
+  [[ -n "$disk" ]] || disk="$(bundle_boot_disk "$(vm_bundle_dir "$(vm_uuid "$name")")")"
   if [[ -n "$disk" ]]; then
     cur_bytes="$(disk_bytes "$disk")"
     want_bytes=$(( want_disk_gb * 1024 * 1024 * 1024 ))
@@ -55,7 +60,7 @@ reconcile_existing_vm() {
       warn "${name}: could not check its disk size (qemu-img could not read ${disk})"
     fi
   else
-    warn "${name}: could not check its disk size (no staging file in ${GEN_DIR}, was generated/ cleared after this VM was created?)"
+    warn "${name}: could not check its disk size (no staging file in ${GEN_DIR} and no boot disk in the UTM bundle under $(utm_documents_dir))"
   fi
 
   # Nothing to reconfigure, but 'make up' must still start a stopped VM (after

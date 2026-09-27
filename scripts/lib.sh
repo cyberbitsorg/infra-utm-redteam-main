@@ -181,10 +181,22 @@ vm_bundle_dir() {
   done
 }
 
+# The boot disk inside a bundle: the first drive, in the order
+# create-vm.applescript adds them (boot, seed, data). Prints nothing when the
+# bundle has no boot drive or its image file is gone, so callers must treat an
+# empty result as "not found" rather than as a path.
+bundle_boot_disk() {
+  local bundle="${1:-}" image
+  [[ -f "${bundle}/config.plist" ]] || return 0
+  image="$(plutil -extract Drive.0.ImageName raw -o - "${bundle}/config.plist" 2>/dev/null || true)"
+  [[ -n "$image" && -f "${bundle}/Data/${image}" ]] || return 0
+  echo "${bundle}/Data/${image}"
+}
+
 # The persistent data disk inside a bundle: the third drive, in the order
 # create-vm.applescript adds them (boot, seed, data). Prints nothing when the
 # bundle has no third drive or its image file is gone, so callers must treat an
-# empty result as "not found" rather than as an empty path.
+# empty result as "not found" rather than as a path.
 bundle_data_disk() {
   local bundle="${1:-}" image
   [[ -f "${bundle}/config.plist" ]] || return 0
