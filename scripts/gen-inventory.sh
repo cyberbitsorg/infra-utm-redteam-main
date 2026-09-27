@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 # Generate the Ansible inventory from provisioned VMs.
-# Reads stdin lines: "<short> <name> <host> <port>"
+# Reads stdin lines: "<short> <host> <port>"
 # Writes ansible/inventory/hosts.generated.yaml
 # Kept compatible with the bash 3.2 that ships with macOS (no associative arrays).
 source "$(dirname "${BASH_SOURCE[0]}")/lib.sh"
@@ -21,17 +21,16 @@ rows="$(cat)"
   echo "    ansible_ssh_private_key_file: $(priv_key)"
   echo "    ansible_ssh_common_args: '-o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null'"
   echo "  hosts:"
-  while read -r short name host port; do
+  while read -r short host port; do
     [[ -z "$short" ]] && continue
     echo "    ${short}:"
     echo "      ansible_host: ${host}"
     echo "      ansible_port: ${port}"
-    echo "      vm_name: ${name}"
   done <<<"$rows"
   echo "  children:"
   echo "    role_attacker:"
   echo "      hosts:"
-  while read -r short name host port; do
+  while read -r short host port; do
     [[ -z "$short" ]] && continue
     echo "        ${short}:"
   done <<<"$rows"

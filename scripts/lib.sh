@@ -30,10 +30,10 @@ die()  { printf '%s%s%s %s\n' "$(_c '1;31')" "err" "$(_c 0)" "$*" >&2; exit 1; }
 # --- Config -----------------------------------------------------------------
 # Split out from load_config so tests can exercise it without a real lab.conf.
 require_lab_conf_vars() {
-  : "${LAB_PREFIX:?LAB_PREFIX missing in lab.conf}"
+  : "${UTM_VM_NAME:?UTM_VM_NAME missing in lab.conf}"
+  : "${GUEST_HOSTNAME:?GUEST_HOSTNAME missing in lab.conf}"
   : "${LAB_USER:?LAB_USER missing in lab.conf}"
   : "${LAB_SSH_KEY:?LAB_SSH_KEY missing in lab.conf}"
-  : "${VM_NAME:?VM_NAME missing in lab.conf}"
   : "${VM_CPU:?VM_CPU missing in lab.conf}"
   : "${VM_RAM:?VM_RAM missing in lab.conf}"
   : "${VM_DISK_GB:?VM_DISK_GB missing in lab.conf}"
@@ -49,9 +49,6 @@ load_config() {
   LAB_SSH_KEY="${LAB_SSH_KEY/#\~/$HOME}"
   LAB_SSH_KEY="${LAB_SSH_KEY/#\$\{HOME\}/$HOME}"
 }
-
-# Full UTM VM name for a short name (e.g. kali -> redteam-kali).
-vm_name() { echo "${LAB_PREFIX}-$1"; }
 
 # Private key path derived from the public key in lab.conf.
 priv_key() { echo "${LAB_SSH_KEY%.pub}"; }

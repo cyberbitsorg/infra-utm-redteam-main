@@ -6,12 +6,12 @@
 source "$(dirname "${BASH_SOURCE[0]}")/lib.sh"
 load_config
 
-short="${1:-$VM_NAME}"
+short="${1:-$UTM_VM_NAME}"
 
 # Validated here so a typo fails clearly instead of inside AppleScript.
-[[ "$short" == "$VM_NAME" ]] || die "Unknown VM '${short}'. This box is '${VM_NAME}'."
+[[ "$short" == "$UTM_VM_NAME" ]] || die "Unknown VM '${short}'. This box is '${UTM_VM_NAME}'."
 
-name="$(vm_name "$VM_NAME")"
+name="$UTM_VM_NAME"
 [[ "$(vm_status "$name")" == "started" ]] \
   || die "${name} is not running (status: $(vm_status "$name" || echo 'not created')). Run 'make up' first."
 

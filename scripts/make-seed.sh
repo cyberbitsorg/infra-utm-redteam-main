@@ -1,11 +1,10 @@
 #!/usr/bin/env bash
 # Render a cloud-init NoCloud seed ISO for the VM.
-# Usage: make-seed.sh <name> <mac>
+# Usage: make-seed.sh <mac>
 source "$(dirname "${BASH_SOURCE[0]}")/lib.sh"
 
 load_config
-short="${1:?name required}"
-mac="${2:?nic mac required}"
+mac="${1:?nic mac required}"
 
 mkdir -p "$GEN_DIR"
 work="$(mktemp -d)"
@@ -15,7 +14,7 @@ template="${CLOUDINIT_DIR}/kali.user-data.yaml"
 [[ -f "$template" ]] || die "Cloud-init template missing: ${template}"
 
 pubkey="$(cat "$LAB_SSH_KEY")"
-hostname="$(vm_name "$short")"
+hostname="$GUEST_HOSTNAME"
 
 # user-data: substitute username, hostname and SSH public key.
 sed \

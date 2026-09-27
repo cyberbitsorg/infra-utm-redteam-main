@@ -56,7 +56,9 @@ if [[ -f "$LAB_SSH_KEY" ]]; then
 else
   priv="$(priv_key)"
   warn "Key missing, generating ${priv}"
-  ssh-keygen -t ed25519 -N "" -C "redteam-main" -f "$priv"
+  # The key comment follows the persona from lab.conf, so it reads like a
+  # normal user@host key wherever the public half ends up.
+  ssh-keygen -t ed25519 -N "" -C "${LAB_USER}@${GUEST_HOSTNAME}" -f "$priv"
   ok "Generated ${priv} and ${priv}.pub"
 fi
 

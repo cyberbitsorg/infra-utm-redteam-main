@@ -77,7 +77,8 @@ make test          # run the shell unit tests
 | `KEEP_HOME` | `yes` \| `no` | `yes` | `yes`: `/home` is a second disk that `make destroy` keeps. `no`: no second disk, so every rebuild starts with an empty home |
 | `SHARED_DIR` | path | `~/Sandbox` | Host folder shared into the guest under the same name |
 | `DATA_DISK_GB` | integer | `40` | Size of that second disk at first creation; never shrunk. Ignored with `KEEP_HOME=no` |
-| `VM_NAME` | string | `kali` | The UTM VM is `<LAB_PREFIX>-<VM_NAME>` |
+| `UTM_VM_NAME` | string | `kali` | Label in UTM's sidebar only; the guest never sees it |
+| `GUEST_HOSTNAME` | string | `DESKTOP-QW7PL2` | Hostname inside the VM: what DHCP/DNS and the shell prompt show, so keep it boring |
 | `VM_CPU` / `VM_RAM` / `VM_DISK_GB` | integer | `4` / `8192` / `80` | Cores / MiB / GB |
 
 See `lab.conf.example` for the full set (identity, image pin, etc.).

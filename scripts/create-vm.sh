@@ -5,7 +5,7 @@ source "$(dirname "${BASH_SOURCE[0]}")/lib.sh"
 
 load_config
 
-name="$(vm_name "$VM_NAME")"
+name="$UTM_VM_NAME"
 mac="$VM_MAC"
 cpu="$VM_CPU"
 ram="$VM_RAM"
@@ -134,7 +134,7 @@ if [[ "$(keep_home)" == "true" ]]; then
 fi
 
 log "Building cloud-init seed for ${name}"
-seed="$("$(dirname "${BASH_SOURCE[0]}")/make-seed.sh" "$VM_NAME" "$mac" | tail -1)"
+seed="$("$(dirname "${BASH_SOURCE[0]}")/make-seed.sh" "$mac" | tail -1)"
 
 shared="$(shared_dir)"
 mkdir -p "$shared"

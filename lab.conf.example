@@ -1,12 +1,10 @@
 # infra-utm-redteam-main config. Copy to lab.conf (gitignored) and adjust.
 
 # --- Identity ---
-# LAB_PREFIX is for the VM. VM is named <LAB_PREFIX>-<VM_NAME>
 # LAB_USER is created by cloud-init; Ansible connects as this user
 # LAB_SSH_KEY is your SSH key, preflight creates one
-LAB_PREFIX="redteam"
 LAB_USER="redteam"
-LAB_SSH_KEY="${HOME}/.ssh/id_ed25519_redteam.pub"
+LAB_SSH_KEY="${HOME}/.ssh/id_ed25519_kali.pub"
 
 # --- Console and desktop ---
 # ATTACKER_PASSWORD for console + LightDM only; SSH stays key-only.
@@ -58,7 +56,11 @@ KEEP_HOME="yes"
 DATA_DISK_GB=40
 
 # --- Virtual machine ---
-VM_NAME="kali"
+# UTM_VM_NAME is only the label in UTM's sidebar; the guest never sees it.
+# GUEST_HOSTNAME is the hostname inside the VM, the name DHCP/DNS and the shell
+# prompt show the world, so keep it boring.
+UTM_VM_NAME="kali"
+GUEST_HOSTNAME="DESKTOP-QW7PL2"
 VM_CPU=4
 VM_RAM=8192
 VM_DISK_GB=80

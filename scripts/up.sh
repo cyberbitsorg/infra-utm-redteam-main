@@ -59,13 +59,13 @@ fi
 
 log "Provisioning the VM"
 result="$("${SCRIPTS}/create-vm.sh" | tail -1)"
-read -r name port <<<"$result"
+read -r _ port <<<"$result"
 host="127.0.0.1"
 
 log "Waiting for the VM to accept SSH"
 "${SCRIPTS}/wait-ssh.sh" "$host" "$port" 420
 
-printf '%s %s %s %s\n' "$VM_NAME" "$name" "$host" "$port" | "${SCRIPTS}/gen-inventory.sh"
+printf '%s %s %s\n' "$UTM_VM_NAME" "$host" "$port" | "${SCRIPTS}/gen-inventory.sh"
 
 if [[ "$MODE" == "provision" ]]; then
   ok "Provisioning done. Run 'make configure' to apply Ansible."
@@ -74,4 +74,4 @@ fi
 
 run_ansible
 echo
-ok "Box is up. Try: make ssh kali"
+ok "Box is up. Try: make ssh ${UTM_VM_NAME}"

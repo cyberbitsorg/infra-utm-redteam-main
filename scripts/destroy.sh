@@ -4,7 +4,7 @@
 source "$(dirname "${BASH_SOURCE[0]}")/lib.sh"
 load_config
 
-name="$(vm_name "$VM_NAME")"
+name="$UTM_VM_NAME"
 echo "This will DELETE this UTM VM and all its data:"
 echo "  - ${name}"
 read -r -p "Type 'yes' to continue: " confirm
