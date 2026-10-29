@@ -3,7 +3,7 @@
 # --- Identity ---
 # LAB_USER is created by cloud-init; Ansible connects as this user
 # LAB_SSH_KEY is your SSH key, preflight creates one
-LAB_USER="redteam"
+LAB_USER="devops"
 LAB_SSH_KEY="${HOME}/.ssh/id_ed25519_kali.pub"
 
 # --- Console and desktop ---
@@ -23,16 +23,16 @@ ATTACKER_GUI="xfce"
 # first is the one it boots in, and Super+1, Super+2 (or the desktop launchers, or
 # 'lab-screen <WxH>') switch between them until the next reboot. Matching a mode to a
 # display's point size makes it fill that screen 1:1 in fullscreen, with no scaling at all.
-DISPLAY_RESOLUTION="1920x1080"
+DISPLAY_RESOLUTION="3360x1418 1512x982"
 
 # DESKTOP_COMPOSITING is for XFCE shadows/fades, full-screen CPU redraws
 # CLIPBOARD is SPICE clipboard sharing with macOS
-DESKTOP_COMPOSITING="no"
+DESKTOP_COMPOSITING="yes"
 CLIPBOARD="yes"
 
 # AUDIO sends guest sound to the Mac's current default output device. The card is added
 # by hand in UTM once; this knob only does the guest side. See README.
-AUDIO="no"
+AUDIO="yes"
 
 # Host folder shared live into the guest under the same name. Outside the repo so engagement
 # files never hit a git tree; no spaces (fstab entry). Point UTM at it once, see README.
@@ -42,10 +42,10 @@ SHARED_DIR="${HOME}/Sandbox"
 # 'mullvad' CLI; browser needs a desktop and is the arm64 alpha build. Log in with 'mullvad
 # account login <number>'. 'no' purges both and drops the account. Provisioning enables LAN
 # sharing so the kill switch can't drop your SSH session; see README.
-MULLVAD="no"
+MULLVAD="yes"
 
 # curated (minimal) | headless | default | large. Bigger = slower first build.
-KALI_TOOLSET="default"
+KALI_TOOLSET="large"
 
 # Keep /home across a rebuild, or not. Changing it needs 'make destroy' + 'make up':
 #   yes  /home is a second disk in persist/ that 'make destroy' keeps
@@ -59,10 +59,10 @@ DATA_DISK_GB=40
 # UTM_VM_NAME is only the label in UTM's sidebar; the guest never sees it.
 # GUEST_HOSTNAME is the hostname inside the VM, the name DHCP/DNS and the shell
 # prompt show the world, so keep it boring.
-UTM_VM_NAME="kali"
+UTM_VM_NAME="main-kali"
 GUEST_HOSTNAME="DESKTOP-QW7PL2"
-VM_CPU=4
-VM_RAM=8192
+VM_CPU=8
+VM_RAM=16384
 VM_DISK_GB=80
 
 # --- Base image (ARM64) ---
