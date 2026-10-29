@@ -271,35 +271,6 @@
     state: mounted
   when: attacker_keep_home | bool
 
-# --- Leftovers from the old scratch layout ----------------------------------
-# KEEP_HOME=no used to mount the disk at /data and hang ~/engagements off it.
-# Nothing creates either any more, so clear them off boxes that still have them.
-# Only ever on a kept home: on a box still running the old scratch layout these
-# would unmount work that is in use.
-- name: Look for a leftover ~/engagements link
-  ansible.builtin.stat:
-    path: "/home/{{ ansible_user }}/engagements"
-  register: attacker_engagements
-  when: attacker_keep_home | bool
-
-# Removed only when it is still the symlink to /data that the old layout made.
-# A real directory of that name is the user's own and is left alone, because
-# state=absent on a directory would delete everything in it.
-- name: Remove the leftover ~/engagements link
-  ansible.builtin.file:
-    path: "/home/{{ ansible_user }}/engagements"
-    state: absent
-  when:
-    - attacker_keep_home | bool
-    - attacker_engagements.stat.islnk | default(false)
-    - (attacker_engagements.stat.lnk_target | default('')) == '/data'
-
-- name: Remove the leftover /data mount
-  ansible.posix.mount:
-    path: /data
-    state: absent
-  when: attacker_keep_home | bool
-
 # --- The shared folder ------------------------------------------------------
 # Appears in the lab user's home under attacker_shared_name. VirtFS's 9p tag is
 # always "share", so src below is that tag, not a path. UTM shares mapped-xattr,
